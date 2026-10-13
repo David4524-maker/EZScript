@@ -395,6 +395,7 @@ const I18N = {
     mostrar:{en:"show",pt:"exibir"},print:{en:"print",pt:"imprimir"},
     limpiar_pantalla:{en:"clear_screen",pt:"limpar_tela"},
     limpiar_consola:{en:"clear_console",pt:"limpar_console"},
+    boton:{en:"button",pt:"botao"},
     var:{en:"let",pt:"var"},incrementar:{en:"increment",pt:"incrementar"},
     decrementar:{en:"decrement",pt:"decrementar"},
     entrada:{en:"input",pt:"entrada"},asignar:{en:"set",pt:"definir"},
@@ -887,6 +888,17 @@ class Interpreter{
     app.onExecutionFinished(this.execution_time, this.executed_lines);
   }
 
+  async execute_inline(code){
+    if(!code) return;
+    try{
+      const lines = [{num:0, text: code}];
+      await this.run_block(lines, 0, 1);
+    }catch(e){
+      if(e instanceof ReturnSignal || e instanceof BreakSignal || e instanceof ContinueSignal) return;
+      this.log_error(String(e.message || e));
+    }
+  }
+
   async run_block(lines, start=0, end=null){
     if(end === null) end = lines.length;
     let i = start;
@@ -1032,6 +1044,43 @@ class Interpreter{
     }
     if(line === "limpiar_pantalla"){ app.clearConsole(); app.clearCanvas(); return; }
     if(line === "limpiar_consola"){ app.clearConsole(); return; }
+
+    /* BOTÓN interactivo en la consola */
+    if(line.startsWith("boton:")){
+      const raw = line.slice(6).trim();
+      let content = raw;
+      if(content.startsWith("(") && content.endsWith(")")) content = content.slice(1,-1);
+      let depth = 0, splitIdx = -1, inStr = false, strCh = "";
+      for(let i = 0; i < content.length; i++){
+        const c = content[i];
+        if(inStr){ if(c === strCh && content[i-1] !== "\\") inStr = false; continue; }
+        if(c === '"' || c === "'"){ inStr = true; strCh = c; continue; }
+        if(c === "(" || c === "[") depth++;
+        if(c === ")" || c === "]") depth--;
+        if(c === "," && depth === 0){ splitIdx = i; break; }
+      }
+      const txtPart = splitIdx >= 0 ? content.slice(0, splitIdx) : content;
+      const actionPart = splitIdx >= 0 ? content.slice(splitIdx + 1).trim() : "";
+      const txt = String(this.eval_expr(txtPart));
+
+      const btn = document.createElement("button");
+      btn.textContent = txt;
+      btn.style.cssText =
+        "background:#0984e3;color:#fff;border:none;padding:4px 12px;" +
+        "border-radius:4px;margin:3px 0;font-family:inherit;font-size:11.5px;" +
+        "font-weight:bold;cursor:pointer;transition:filter .15s;";
+      btn.onmouseenter = () => btn.style.filter = "brightness(1.15)";
+      btn.onmouseleave = () => btn.style.filter = "";
+      btn.addEventListener("click", () => {
+        if(actionPart) this.execute_inline(actionPart);
+      });
+
+      const wrapper = document.createElement("div");
+      wrapper.appendChild(btn);
+      app.consoleEl.appendChild(wrapper);
+      app.consoleEl.scrollTop = app.consoleEl.scrollHeight;
+      return;
+    }
 
     /* VARIABLES */
     if(line.startsWith("var:")){ const a = parseArgs(line.slice(4)); v[a[0].trim()] = this.eval_expr(a[1]); return; }
@@ -1243,7 +1292,7 @@ class Interpreter{
     }
     if(line.startsWith("contar:")){ const a = parseArgs(line.slice(7)); this.log(`🔢 Contar: ${String(this.eval_expr(a[0])).length}`, "info"); return; }
 
-    /* DIBUJO — usamos app.pushDraw para ver el dibujo al momento */
+    /* DIBUJO */
     if(line.startsWith("color:")){ const a = parseArgs(line.slice(6)); this.current_draw_color = this.get_color(this.eval_expr(a[0])); return; }
     if(line.startsWith("color_canvas:")){ const a = parseArgs(line.slice(13)); this.current_draw_color = this.get_color(this.eval_expr(a[0])); return; }
     if(line.startsWith("grosor_linea:")){ const a = parseArgs(line.slice(13)); this.current_line_width = parseInt(this.eval_expr(a[0]))||1; return; }
@@ -1704,6 +1753,7 @@ class IDE{
       "Sprite": 'sprite:(jugador, 50, 50, 16, 16, "rojo")',
       "Timer": "cada:(t1, 1000, mi_funcion)",
       "Evento": 'al:("click", mi_handler)',
+      "Botón": 'boton:("Púlsame", mostrar "¡Hola!")',
     };
     this.canvasKeyBindings = {};
     this.macroEvents = [];
@@ -1730,7 +1780,6 @@ class IDE{
     this.log("EasyScript Studio v5.0.0 — Web Edition", "success");
     this.log("Pulsa F5 o el botón ▶ Ejecutar para empezar.", "dim");
 
-    // Fuerza resize cuando el layout ya está listo
     requestAnimationFrame(() => { this.resizeCanvas(); this.redrawCanvas(); });
     setTimeout(() => { this.resizeCanvas(); this.redrawCanvas(); }, 150);
   }
@@ -2143,7 +2192,7 @@ class IDE{
     else this.toast(this.t("language_changed") + " " + code.toUpperCase());
   }
 
-  /* ---------- canvas (ARREGLADO) ---------- */
+  /* ---------- canvas ---------- */
   resizeCanvas(){
     const parent = this.canvasEl.parentElement;
     let W = parent.clientWidth;
@@ -2175,7 +2224,6 @@ class IDE{
       try{ cmd(this.ctx); }catch(e){ console.error(e); }
     }
   }
-  // ★ NUEVO: dibuja YA y también guarda en la cola para redraw
   pushDraw(cmd){
     this.drawCommands.push(cmd);
     try{ cmd(this.ctx); }catch(e){ console.error(e); }
@@ -2688,6 +2736,7 @@ class IDE{
       ["10. Listas avanzadas", 'rango:(l, 1, 6)\nmostrar l\nfiltro_pares:(p, l)\nmostrar p\npromedio_lista:(avg, l)\nmostrar avg'],
       ["11. Bits", 'bit_and:(r, 12, 10)\nmostrar r\nshl:(s, 1, 4)\nmostrar s'],
       ["12. JSON", 'json_dumps:(j, [1,2,3])\nmostrar j\njson_loads:(l, j)\nmostrar l'],
+      ["13. Botón", 'boton:("¡Púlsame!", mostrar "¡Funciona!")'],
     ];
     this.showModal(this.t("tutorials"), "", () => {
       const b = document.getElementById("modalBody");
@@ -2799,6 +2848,14 @@ Ctrl+/ comentar · Ctrl+G ir a línea · Ctrl+F buscar
 ─── ${t("ref_toggle")} ───
 ${t("ref_toggle_help")}
 
+─── ★ UI INTERACTIVA ──
+boton:("texto", accion)       → botón en la consola
+button:("text", action)       → alias inglés
+botao:("texto", acao)         → alias portugués
+
+Ejemplo:
+  boton:("Púlsame", mostrar "¡Hola!")
+
 ─── ★ CADENAS AVANZADAS ──
 trim · trim_izq · trim_der · subcadena · empieza_con · termina_con
 buscar_pos · capitalizar · repetir_texto · formato
@@ -2867,6 +2924,8 @@ detener`;
       "Función": 'funcion:(doble, x)\n    multiplicar:(r, x, 2)\n    retornar:(r)\nfin_funcion\nllamar:(doble, 21)\nmostrar r',
       "Clase": 'clase:(Saludo)\n    funcion:(constructor)\n        propiedad:(veces, 0)\n    fin_funcion\n    funcion:(di, quien)\n        mostrar "Hola"\n    fin_funcion\nfin_clase\nnuevo:(g, Saludo)\nllamar_metodo:(g, di, "mundo")',
       "Test": 'test:("suma")\n    sumar:(r, 2, 2)\n    afirmar_igual:(r, 4)\nfin_test',
+      "★ Botón básico": 'boton:("¡Saluda!", mostrar "Hola mundo")',
+      "★ Botón con var": 'var:(contador, 0)\nfuncion:(sumar_uno)\n    incrementar:(contador, 1)\n    mostrar contador\nfin_funcion\nboton:("+1", llamar:(sumar_uno))\nboton:("Reset", var:(contador, 0))',
       "Modo 8-bit": 'modo_grafico:("8bit")\npaleta:("nes")\ncuadricula:(16)\ncolor:("rojo")\nrectangulo:(40,40,80,60)\ncirculo:(220,90,40,"azul")',
       "Modo 16-bit": 'modo_grafico:("16bit")\npaleta:("snes")\ncirculo:(300,200,80,"dorado")\ntexto_canvas:(250,100,"SNES","blanco")',
       "Sprite": 'sprite:(nave, 50, 50, 20, 20, "cian")\nmover_sprite:(nave, 60, 0)\nnota:(440, 100)',
@@ -2901,6 +2960,7 @@ detener`;
       "Retro 8-bit": 'modo_grafico:("8bit")\npaleta:("nes")\ncuadricula:(16)\n',
       "Retro 16-bit": 'modo_grafico:("16bit")\npaleta:("snes")\n',
       "Juego base": 'modo_grafico:("8bit")\nsprite:(jugador, 100, 200, 20, 20, "verde")\n',
+      "Interactivo": 'boton:("Púlsame", mostrar "¡Funciona!")\n',
     };
     this.showModal(this.t("templates"), "", () => {
       const b = document.getElementById("modalBody");
@@ -2926,7 +2986,7 @@ detener`;
     this.toast("📖 Documentación generada");
   }
 
-  /* ---------- archivos (ARREGLADO: guardar .ez) ---------- */
+  /* ---------- archivos ---------- */
   openFile(){
     const inp = document.createElement("input");
     inp.type = "file"; inp.accept = ".ez,.txt";
@@ -2952,7 +3012,6 @@ detener`;
     const d = this.documents[this.activeDocIdx];
     if(!d) return;
 
-    // Nombre seguro con extensión .ez garantizada
     let base = (d.title || "proyect").trim();
     if(!base) base = "proyect";
     base = base.replace(/\.ez$/i, "");
@@ -2962,7 +3021,6 @@ detener`;
     const filename = base + ".ez";
     const blob = new Blob([d.content], {type:"text/plain;charset=utf-8"});
 
-    // 1) File System Access API (diálogo real "Guardar como…")
     if(window.showSaveFilePicker){
       try{
         const handle = await window.showSaveFilePicker({
@@ -2979,11 +3037,9 @@ detener`;
         return;
       }catch(err){
         if(err && err.name === "AbortError") return;
-        // fallback al método clásico
       }
     }
 
-    // 2) Fallback clásico (descarga)
     this.downloadBlob(blob, filename);
     this.toast("💾 Descargado: " + filename);
   }
@@ -3020,7 +3076,6 @@ detener`;
 </head><body><h2>EasyScript Studio v${VERSION}</h2><pre>${code}</pre></body></html>`;
     this.downloadBlob(new Blob([html], {type:"text/html"}), "easyscript.html");
   }
-  // ★ ARREGLADO: insertar en DOM y revocar tras 2s
   downloadBlob(blob, filename){
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -3127,6 +3182,9 @@ circulo:(220, 90, 40, "azul")
 sprite:(nave, 300, 200, 20, 20, "cian")
 nota:(440, 100)
 musica:("do,mi,sol,do5")
+
+// Botón interactivo (funciona en ES/EN/PT)
+boton:("🎉 ¡Púlsame!", mostrar "¡Funciona!")
 
 logro:("v5.0 - 99 comandos nuevos")`;
   }
