@@ -1,0 +1,3099 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EasyScript (EZScript) HTML</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:Consolas,"Courier New",monospace;font-size:12px;background:#1e272e;color:#fff}
+button,input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none;outline:none}
+textarea,input{outline:none;border:none}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:rgba(0,0,0,.1)}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:5px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.35)}
+#menubar{display:flex;height:24px;align-items:stretch;background:#1a222c;font-size:12px;user-select:none;position:relative;z-index:100;border-bottom:1px solid rgba(0,0,0,.4)}
+#menubar .mi{padding:0 10px;display:flex;align-items:center;cursor:default;position:relative;white-space:nowrap}
+#menubar .mi:hover{background:rgba(255,255,255,.1)}
+#menubar .mi.open{background:rgba(255,255,255,.18)}
+#menubar .dd{display:none;position:absolute;top:24px;left:0;background:#1a222c;border:1px solid rgba(0,0,0,.4);min-width:250px;padding:4px 0;z-index:200;box-shadow:0 6px 20px rgba(0,0,0,.5);max-height:80vh;overflow:auto}
+#menubar .mi.open .dd{display:block}
+#menubar .dd .it{padding:4px 14px;cursor:default;display:flex;justify-content:space-between;gap:20px;font-size:12px;white-space:nowrap}
+#menubar .dd .it:hover{background:rgba(255,255,255,.15)}
+#menubar .dd .it .ac{color:#8a9;font-size:11px}
+#menubar .dd .sep{height:1px;background:rgba(255,255,255,.12);margin:4px 0}
+#menubar .dd .it.chk::before{content:"   ";margin-right:-4px}
+#menubar .dd .it.chk.on::before{content:"✓ "}
+#toolbar{display:flex;align-items:center;gap:3px;padding:4px 6px;background:#2c3e50;border-bottom:1px solid rgba(0,0,0,.4);min-height:34px;flex-wrap:wrap}
+.tb{display:flex;align-items:center;gap:5px;padding:4px 8px;border-radius:3px;background:rgba(255,255,255,.08);border:1px solid rgba(0,0,0,.25);font-size:11.5px;white-space:nowrap}
+.tb:hover{background:rgba(255,255,255,.2)}
+.tb:active{transform:translateY(1px)}
+#progress{width:120px;height:12px;background:rgba(255,255,255,.1);border-radius:6px;overflow:hidden;margin-left:auto}
+#progress > div{height:100%;background:#e74c3c;width:0%;transition:width .15s}
+#main{position:absolute;top:60px;left:0;right:0;bottom:22px;display:flex;flex-direction:column}
+#topArea{flex:1;display:flex;min-height:0}
+#sidebar{width:200px;min-width:120px;background:#2c3e50;border-right:1px solid rgba(0,0,0,.4);display:flex;flex-direction:column;overflow:hidden}
+#sbTitle{padding:6px 10px;font-weight:bold;font-size:11.5px;background:#1f2a35;letter-spacing:.5px;text-transform:uppercase}
+#sbTree{flex:1;padding:5px;font-size:12px;overflow:auto}
+#sbTree .nd{padding:2px 4px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+#sbTree .nd:hover{background:rgba(255,255,255,.1)}
+#sbTree .nd.fd::before{content:"📁 "}
+#sbTree .nd.fl::before{content:"📄 "}
+#sbBtns{display:flex;gap:3px;padding:5px;background:rgba(0,0,0,.15)}
+#sbBtns button{flex:1;padding:5px;border-radius:3px;background:rgba(255,255,255,.1);font-size:11px}
+#sbBtns button:hover{background:rgba(255,255,255,.2)}
+#rightCol{flex:1;display:flex;flex-direction:column;min-width:0;background:#282c34}
+#tabsBar{display:flex;background:rgba(0,0,0,.2);min-height:26px;border-bottom:1px solid rgba(0,0,0,.3);overflow-x:auto}
+.tab{padding:4px 12px;font-size:12px;color:#aaa;border-right:1px solid rgba(0,0,0,.3);display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.tab.on{background:#282c34;color:#fff}
+.tab .cl{opacity:.5;font-size:14px;padding:0 2px}
+.tab .cl:hover{opacity:1}
+#editorContainer{flex:1;display:flex;min-height:0;position:relative;overflow:hidden;background:#282c34}
+#lineNumbers{padding:10px 6px 10px 10px;background:rgba(0,0,0,.15);color:#7f8c8d;text-align:right;font-size:11px;line-height:1.5;user-select:none;overflow:hidden;min-width:46px;white-space:pre}
+#editorStack{flex:1;position:relative;overflow:hidden}
+#minimap{width:70px;background:#1e2227;color:#5c6370;font-size:2px;line-height:2px;overflow:hidden;padding:10px 4px;white-space:pre;user-select:none;border-left:1px solid rgba(0,0,0,.3)}
+#highlight,#editor{position:absolute;top:0;left:0;right:0;bottom:0;font-family:Consolas,"Courier New",monospace;font-size:11px;line-height:1.5;padding:10px 12px;white-space:pre;overflow:auto;tab-size:4;-moz-tab-size:4}
+#highlight{color:#fff;background:#282c34;pointer-events:none;z-index:1}
+#editor{color:transparent;caret-color:#fff;background:transparent;z-index:2}
+#editor::selection{background:rgba(255,255,255,.25);color:transparent}
+#highlight .cm{color:#7f848e;font-style:italic}
+#highlight .st{color:#98c379}
+#highlight .nm{color:#d19a66}
+#highlight .kw{color:#c678dd;font-weight:bold}
+#highlight .co{color:#e5c07b}
+#highlight .err{background:#4d1f1f}
+#highlight .bm{background:#3d2b00}
+#bottomArea{height:230px;min-height:80px;display:flex;background:#1e272e;border-top:1px solid rgba(0,0,0,.4)}
+#consolePanel{flex:1;display:flex;flex-direction:column;min-width:0;border-right:1px solid rgba(0,0,0,.4)}
+#canvasPanel{flex:1;display:flex;flex-direction:column;min-width:0}
+.pTitle{padding:4px 10px;font-size:11px;background:rgba(0,0,0,.25);letter-spacing:.5px;text-transform:uppercase;color:#aaa;display:flex;justify-content:space-between;align-items:center}
+.pTitle .ac{display:flex;gap:8px;font-size:13px}
+.pTitle .ac span{cursor:pointer;opacity:.6}
+.pTitle .ac span:hover{opacity:1}
+#console{flex:1;padding:8px 12px;overflow:auto;font-size:11px;line-height:1.45;white-space:pre-wrap;word-break:break-word;font-family:Consolas,monospace}
+#console .info{color:#fff}
+#console .error{color:#e74c3c}
+#console .warn{color:#f39c12}
+#console .success{color:#2ecc71}
+#console .dim{color:#7f8c8d}
+#console .ach{color:#ffd700;font-weight:bold}
+#console .test_pass{color:#00b894}
+#console .test_fail{color:#d63031}
+#canvasWrap{flex:1;position:relative;overflow:hidden;background:#1e272e}
+#canvas{position:absolute;top:0;left:0;width:100%;height:100%;display:block}
+#scanlines{position:absolute;inset:0;pointer-events:none;display:none;background:repeating-linear-gradient(to bottom,transparent 0,transparent 2px,rgba(0,0,0,.25) 2px,rgba(0,0,0,.25) 3px)}
+#canvasWrap.scan #scanlines{display:block}
+#statusbar{position:absolute;bottom:0;left:0;right:0;height:22px;display:flex;align-items:center;padding:0 10px;gap:14px;background:#2c3e50;font-size:11.5px;border-top:1px solid rgba(0,0,0,.4)}
+#statusbar .sb{display:flex;align-items:center;gap:4px}
+#statusbar .sp{flex:1}
+#statusbar .pos{color:#95a5a6}
+#statusbar .dbg{color:#f39c12}
+#modalBg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1000;align-items:center;justify-content:center}
+#modalBg.on{display:flex}
+#modal{background:#282c34;border:1px solid rgba(255,255,255,.18);border-radius:5px;max-width:88vw;max-height:88vh;min-width:480px;display:flex;flex-direction:column;box-shadow:0 20px 70px rgba(0,0,0,.7)}
+#modalHdr{padding:9px 14px;font-weight:bold;font-size:13px;background:rgba(0,0,0,.3);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(0,0,0,.3)}
+#modalClose{width:22px;height:22px;border-radius:3px;display:grid;place-items:center;background:rgba(255,255,255,.1);cursor:pointer}
+#modalClose:hover{background:rgba(255,255,255,.25)}
+#modalBody{padding:14px;overflow:auto;font-size:12.5px;line-height:1.55;flex:1;white-space:pre-wrap;font-family:Consolas,monospace}
+#modalBody input,#modalBody textarea,#modalBody select{background:#1e272e;color:#fff;padding:5px 7px;border-radius:3px;border:1px solid rgba(255,255,255,.15);width:100%;font-size:12.5px;font-family:Consolas,monospace}
+#modalBody button{margin-top:6px;margin-right:6px;padding:5px 10px;background:#3498db;border-radius:3px;color:white}
+#modalBody button:hover{filter:brightness(1.15)}
+#modalBody .row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+#modalBody .row label{min-width:90px;text-align:right;color:#95a5a6}
+#modalBody .listbox{background:#1e272e;max-height:220px;overflow:auto;border:1px solid rgba(255,255,255,.1);border-radius:3px;padding:4px}
+#modalBody .listbox .li{padding:3px 6px;cursor:pointer;border-radius:2px}
+#modalBody .listbox .li:hover{background:rgba(255,255,255,.1)}
+#toast{position:fixed;bottom:34px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.88);padding:8px 16px;border-radius:16px;font-size:12px;z-index:2000;opacity:0;transition:opacity .25s;pointer-events:none;border:1px solid rgba(255,255,255,.15)}
+#toast.on{opacity:1}
+#cmdPalette{position:fixed;top:60px;left:50%;transform:translateX(-50%);width:520px;background:#1a222c;border:1px solid rgba(255,255,255,.15);border-radius:5px;z-index:1500;display:none;padding:8px;box-shadow:0 10px 40px rgba(0,0,0,.7)}
+#cmdPalette.on{display:block}
+#cmdPalette input{width:100%;padding:6px 10px;background:#282c34;color:#fff;border-radius:3px;font-size:13px}
+#cmdPaletteList{max-height:300px;overflow:auto;margin-top:6px}
+#cmdPaletteList .li{padding:5px 10px;cursor:pointer;border-radius:3px;font-size:12.5px}
+#cmdPaletteList .li.on,#cmdPaletteList .li:hover{background:#3498db}
+body.present #toolbar,body.present #sidebar,body.present #menubar{display:none}
+body.present #main{top:0}
+</style>
+</head>
+<body>
+
+<div id="menubar"></div>
+<div id="toolbar"></div>
+
+<div id="main">
+  <div id="topArea">
+    <div id="sidebar">
+      <div id="sbTitle">PROYECTO</div>
+      <div id="sbTree"></div>
+      <div id="sbBtns">
+        <button id="sbOpen">📂 <span>Abrir</span></button>
+        <button id="sbRefresh">🔄 <span>Recargar</span></button>
+      </div>
+    </div>
+    <div id="rightCol">
+      <div id="tabsBar"></div>
+      <div id="editorContainer">
+        <div id="lineNumbers">1</div>
+        <div id="editorStack">
+          <pre id="highlight"></pre>
+          <textarea id="editor" spellcheck="false" autocomplete="off" wrap="off"></textarea>
+        </div>
+        <div id="minimap"></div>
+      </div>
+    </div>
+  </div>
+  <div id="bottomArea">
+    <div id="consolePanel">
+      <div class="pTitle">
+        <span id="consoleTitle">CONSOLA</span>
+        <div class="ac">
+          <span id="consoleClear" title="Limpiar">🧹</span>
+          <span id="consoleCopy" title="Copiar">📋</span>
+        </div>
+      </div>
+      <div id="console"></div>
+    </div>
+    <div id="canvasPanel">
+      <div class="pTitle">
+        <span id="canvasTitle">CANVAS</span>
+        <div class="ac"><span id="canvasClear" title="Limpiar">🧹</span></div>
+      </div>
+      <div id="canvasWrap"><canvas id="canvas"></canvas><div id="scanlines"></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="statusbar">
+  <span class="sb" id="statusText">Listo.</span>
+  <span class="sp"></span>
+  <span class="sb pos" id="cursorPos">Ln 1, Col 1</span>
+  <span class="sb pos" id="countText">0 L · 0 c</span>
+  <span class="sb dbg" id="dbgText"></span>
+  <span class="sb" id="langStatus">[ES]</span>
+</div>
+
+<div id="modalBg">
+  <div id="modal">
+    <div id="modalHdr"><span id="modalTitle">Título</span><div id="modalClose">✕</div></div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<div id="cmdPalette">
+  <input id="cmdPaletteInput" placeholder="Escribe un comando…" autocomplete="off">
+  <div id="cmdPaletteList"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* =========================================================
+   EasyScript Studio HTML
+   ========================================================= */
+
+const APP_NAME = "EasyScript (EZScript) Studio";
+const VERSION = "5.0.0";
+const DEFAULT_LANG = "es";
+const DEFAULT_MODE = "normal";
+const DEFAULT_PALETTE = "nes";
+const DEFAULT_FILENAME = "proyect.ez";
+const CONFIG_KEY = "ezscript_cfg_v5";
+const SNIPPETS_KEY = "ezscript_snippets_v5";
+const AUTOSAVE_MS = 60000;
+
+/* =========================================================
+   0) i18n — UI + CMD (idénticas al .py)
+   ========================================================= */
+const I18N = {
+  LANGS: ["es","en","pt"],
+  UI: {
+    es: {
+      file:"Archivo",edit:"Editar",view:"Ver",run:"Ejecutar",help:"Ayuda",
+      language:"Idioma",video_mode:"Modo gráfico",
+      new:"Nuevo",new_tab:"Nueva pestaña",open:"Abrir…",save:"Guardar",save_as:"Guardar como…",
+      close_tab:"Cerrar pestaña",exit:"Salir",recent:"Recientes",
+      console_save:"Guardar consola…",canvas_save:"Guardar canvas (PS)…",
+      pack:"Empaquetar proyecto (.ezp)",unpack:"Importar .ezp",export_html:"Exportar a HTML",
+      undo:"Deshacer",redo:"Rehacer",find:"Buscar/Reemplazar",
+      search_all:"Buscar en todas las pestañas",goto:"Ir a línea…",
+      dup:"Duplicar línea",comment:"Comentar/Descomentar",indent:"Indentar",
+      unindent:"Desindentar",format:"Formatear código",rename_var:"Renombrar variable…",
+      extract_fn:"Extraer a función…",cmd_palette:"Paleta de comandos",
+      autocomplete:"Autocompletar",inspect:"Inspeccionar variables",
+      export_vars:"Exportar variables (JSON)",import_vars:"Importar variables (JSON)",
+      font_up:"Aumentar fuente",font_down:"Disminuir fuente",font_reset:"Restablecer fuente",
+      font_pick:"Cambiar fuente…",tab_size:"Tamaño de tab…",wrap:"Ajustar texto (Wrap)",
+      whitespace:"Mostrar espacios",timestamps:"Timestamps en consola",
+      theme:"Tema claro/oscuro",fullscreen:"Pantalla completa",presentation:"Modo presentación",
+      bookmarks:"Marcadores",toggle_bm:"Alternar marcador",next_bm:"Siguiente marcador",
+      prev_bm:"Marcador anterior",run_all:"Ejecutar todo",run_sel:"Ejecutar selección",
+      run_cursor:"Ejecutar desde cursor",validate:"Validar sintaxis",stop:"Detener ejecución",
+      debugger:"Depurador",watch:"Watch",callstack:"Call stack",
+      profile:"Perfilado",profile_chart:"Gráfica",macro_rec:"Grabar macro",
+      macro_play:"Reproducir macro",test_runner:"Ejecutar tests",
+      clear_console:"Limpiar consola",clear_canvas:"Limpiar canvas",
+      copy_console:"Copiar consola",history:"Historial de ejecuciones",
+      diff:"Comparar versiones",commit:"Commit local",cmd_ref:"Referencia de comandos",
+      examples:"Biblioteca de ejemplos",templates:"Plantillas rápidas",
+      snippet_mgr:"Gestor de snippets",tutorials:"Tutoriales interactivos",
+      doc_gen:"Generar documentación HTML",plugins:"Plugins",
+      install_plugin:"Instalar plugin…",achievements:"Logros",stats:"Estadísticas",
+      about:"Acerca de…",ready:"Listo.",running:"Ejecutando…",stopping:"Deteniendo…",
+      validate_ok:"✅ Sintaxis correcta.",vars:"Variables",stats_title:"Estadísticas",
+      about_body:"EasyScript v5.0.0 — autosuficiente.\nCambio de idioma total en caliente.",
+      language_changed:"Idioma:",lang_reset:"↩ Idioma restablecido:",
+      mode_reset:"↩ Modo restablecido:",palette_reset:"↩ Paleta restablecida:",
+      mode_set:"Modo:",palette_set:"Paleta:",sidebar:"Explorador",project:"Proyecto",
+      refresh:"Recargar",new_tab_title:"Sin título",
+      btn_new:"Nuevo",btn_open:"Abrir",btn_save:"Guardar",btn_run:"Ejecutar",
+      btn_stop:"Detener",btn_console:"Consola",btn_canvas:"Canvas",btn_find:"Buscar",
+      btn_help:"Ayuda",btn_debug:"Depurar",btn_step:"Paso",btn_format:"Formatear",
+      btn_test:"Tests",btn_snippets:"Snippets",
+      dlg_search:"Buscar:",dlg_replace:"Reemplazar:",dlg_regex:"Regex",
+      dlg_find_btn:"Buscar",dlg_replace_all:"Reemplazar todo",
+      dlg_watch_add:"Añadir",dlg_close:"Cerrar",
+      msg_select_code:"Selecciona código primero.",
+      msg_confirm_close:"El documento tiene cambios sin guardar. ¿Cerrar?",
+      msg_already_running:"Ya hay una ejecución en curso.",
+      msg_extract_hint:"Selecciona el bloque a extraer.",
+      dlg_tab_size:"Tamaño de tabulación (2-8):",dlg_font_prompt:"Nombre de la fuente:",
+      dlg_goto:"Ir a línea",dlg_goto_num:"Número:",dlg_rename_old:"Variable actual:",
+      dlg_rename_new:"Nuevo nombre:",dlg_extract_name:"Nombre de la función:",
+      search_placeholder:"Texto:",results_title:"Resultados",no_matches:"Sin coincidencias.",
+      ref_title:"REFERENCIA DE COMANDOS",
+      ref_intro:"Comandos funcionan en ES / EN / PT. Ej: mostrar / show / exibir.",
+      ref_control:"CONTROL DE FLUJO",ref_funcs:"FUNCIONES",ref_classes:"CLASES Y OBJETOS",
+      ref_tests:"TESTS",ref_events:"EVENTOS Y TIMERS",ref_sprites:"SPRITES Y JUEGO",
+      ref_modules:"MÓDULOS",ref_stdlib:"LIBRERÍA ESTÁNDAR",ref_audio:"AUDIO",
+      ref_video:"IDIOMA Y VIDEO",ref_achievements:"LOGROS",ref_shortcuts:"ATAJOS DEL IDE",
+      ref_toggle:"COMPORTAMIENTO TOGGLE",
+      ref_toggle_help:"Pulsa el idioma YA activo (≠ Español) → vuelve a Español.\nPulsa el modo YA activo (≠ Normal) → vuelve a Normal.\nPulsa la paleta YA activa (≠ NES) → vuelve a NES.",
+      console_t:"CONSOLA",canvas_t:"CANVAS",
+    },
+    en: {
+      file:"File",edit:"Edit",view:"View",run:"Run",help:"Help",
+      language:"Language",video_mode:"Video mode",
+      new:"New",new_tab:"New tab",open:"Open…",save:"Save",save_as:"Save as…",
+      close_tab:"Close tab",exit:"Exit",recent:"Recent",
+      console_save:"Save console…",canvas_save:"Save canvas (PS)…",
+      pack:"Pack project (.ezp)",unpack:"Import .ezp",export_html:"Export to HTML",
+      undo:"Undo",redo:"Redo",find:"Find/Replace",search_all:"Search in all tabs",
+      goto:"Go to line…",dup:"Duplicate line",comment:"Toggle comment",
+      indent:"Indent",unindent:"Unindent",format:"Format code",
+      rename_var:"Rename variable…",extract_fn:"Extract to function…",
+      cmd_palette:"Command palette",autocomplete:"Autocomplete",
+      inspect:"Inspect variables",export_vars:"Export variables (JSON)",
+      import_vars:"Import variables (JSON)",font_up:"Increase font",
+      font_down:"Decrease font",font_reset:"Reset font",font_pick:"Change font…",
+      tab_size:"Tab size…",wrap:"Word wrap",whitespace:"Show whitespace",
+      timestamps:"Console timestamps",theme:"Light/dark theme",fullscreen:"Fullscreen",
+      presentation:"Presentation mode",bookmarks:"Bookmarks",toggle_bm:"Toggle bookmark",
+      next_bm:"Next bookmark",prev_bm:"Previous bookmark",run_all:"Run all",
+      run_sel:"Run selection",run_cursor:"Run from cursor",validate:"Validate syntax",
+      stop:"Stop execution",debugger:"Debugger",watch:"Watch",callstack:"Call stack",
+      profile:"Profiling",profile_chart:"Chart",macro_rec:"Record macro",
+      macro_play:"Play macro",test_runner:"Run tests",clear_console:"Clear console",
+      clear_canvas:"Clear canvas",copy_console:"Copy console",history:"Execution history",
+      diff:"Compare versions",commit:"Local commit",cmd_ref:"Command reference",
+      examples:"Examples library",templates:"Quick templates",snippet_mgr:"Snippet manager",
+      tutorials:"Interactive tutorials",doc_gen:"Generate HTML docs",plugins:"Plugins",
+      install_plugin:"Install plugin…",achievements:"Achievements",stats:"Statistics",
+      about:"About…",ready:"Ready.",running:"Running…",stopping:"Stopping…",
+      validate_ok:"✅ Syntax OK.",vars:"Variables",stats_title:"Statistics",
+      about_body:"EasyScript v5.0.0 — self-contained.\nFull live language switch.",
+      language_changed:"Language:",lang_reset:"↩ Language reset:",
+      mode_reset:"↩ Mode reset:",palette_reset:"↩ Palette reset:",
+      mode_set:"Mode:",palette_set:"Palette:",sidebar:"Explorer",project:"Project",
+      refresh:"Refresh",new_tab_title:"Untitled",
+      btn_new:"New",btn_open:"Open",btn_save:"Save",btn_run:"Run",btn_stop:"Stop",
+      btn_console:"Console",btn_canvas:"Canvas",btn_find:"Find",btn_help:"Help",
+      btn_debug:"Debug",btn_step:"Step",btn_format:"Format",btn_test:"Tests",
+      btn_snippets:"Snippets",dlg_search:"Find:",dlg_replace:"Replace:",
+      dlg_regex:"Regex",dlg_find_btn:"Find",dlg_replace_all:"Replace all",
+      dlg_watch_add:"Add",dlg_close:"Close",msg_select_code:"Select code first.",
+      msg_confirm_close:"The document has unsaved changes. Close?",
+      msg_already_running:"An execution is already running.",
+      msg_extract_hint:"Select the block to extract.",
+      dlg_tab_size:"Tab size (2-8):",dlg_font_prompt:"Font name:",dlg_goto:"Go to line",
+      dlg_goto_num:"Number:",dlg_rename_old:"Current variable:",
+      dlg_rename_new:"New name:",dlg_extract_name:"Function name:",
+      search_placeholder:"Text:",results_title:"Results",no_matches:"No matches.",
+      ref_title:"COMMAND REFERENCE",
+      ref_intro:"Commands work in EN / ES / PT. Ex: show / mostrar / exibir.",
+      ref_control:"CONTROL FLOW",ref_funcs:"FUNCTIONS",ref_classes:"CLASSES AND OBJECTS",
+      ref_tests:"TESTS",ref_events:"EVENTS AND TIMERS",ref_sprites:"SPRITES AND GAME",
+      ref_modules:"MODULES",ref_stdlib:"STANDARD LIBRARY",ref_audio:"AUDIO",
+      ref_video:"LANGUAGE AND VIDEO",ref_achievements:"ACHIEVEMENTS",
+      ref_shortcuts:"IDE SHORTCUTS",ref_toggle:"TOGGLE BEHAVIOR",
+      ref_toggle_help:"Click the language already active (≠ Spanish) → returns to Spanish.\nClick the mode already active (≠ Normal) → returns to Normal.\nClick the palette already active (≠ NES) → returns to NES.",
+      console_t:"CONSOLE",canvas_t:"CANVAS",
+    },
+    pt: {
+      file:"Arquivo",edit:"Editar",view:"Ver",run:"Executar",help:"Ajuda",
+      language:"Idioma",video_mode:"Modo gráfico",new:"Novo",new_tab:"Nova aba",
+      open:"Abrir…",save:"Salvar",save_as:"Salvar como…",close_tab:"Fechar aba",
+      exit:"Sair",recent:"Recentes",console_save:"Salvar console…",
+      canvas_save:"Salvar canvas (PS)…",pack:"Empacotar projeto (.ezp)",
+      unpack:"Importar .ezp",export_html:"Exportar para HTML",undo:"Desfazer",
+      redo:"Refazer",find:"Localizar/Substituir",search_all:"Buscar em todas as abas",
+      goto:"Ir para linha…",dup:"Duplicar linha",comment:"Comentar/Descomentar",
+      indent:"Indentar",unindent:"Desindentar",format:"Formatar código",
+      rename_var:"Renomear variável…",extract_fn:"Extrair para função…",
+      cmd_palette:"Paleta de comandos",autocomplete:"Autocompletar",
+      inspect:"Inspecionar variáveis",export_vars:"Exportar variáveis (JSON)",
+      import_vars:"Importar variáveis (JSON)",font_up:"Aumentar fonte",
+      font_down:"Diminuir fonte",font_reset:"Redefinir fonte",font_pick:"Trocar fonte…",
+      tab_size:"Tamanho do tab…",wrap:"Quebra de linha",whitespace:"Mostrar espaços",
+      timestamps:"Timestamps no console",theme:"Tema claro/escuro",fullscreen:"Tela cheia",
+      presentation:"Modo apresentação",bookmarks:"Marcadores",toggle_bm:"Alternar marcador",
+      next_bm:"Próximo marcador",prev_bm:"Marcador anterior",run_all:"Executar tudo",
+      run_sel:"Executar seleção",run_cursor:"Executar do cursor",validate:"Validar sintaxe",
+      stop:"Parar execução",debugger:"Depurador",watch:"Watch",callstack:"Call stack",
+      profile:"Perfil",profile_chart:"Gráfico",macro_rec:"Gravar macro",
+      macro_play:"Reproduzir macro",test_runner:"Executar testes",
+      clear_console:"Limpar console",clear_canvas:"Limpar canvas",
+      copy_console:"Copiar console",history:"Histórico de execuções",
+      diff:"Comparar versões",commit:"Commit local",cmd_ref:"Referência de comandos",
+      examples:"Biblioteca de exemplos",templates:"Modelos rápidos",
+      snippet_mgr:"Gerenciador de snippets",tutorials:"Tutoriais interativos",
+      doc_gen:"Gerar documentação HTML",plugins:"Plugins",install_plugin:"Instalar plugin…",
+      achievements:"Conquistas",stats:"Estatísticas",about:"Sobre…",ready:"Pronto.",
+      running:"Executando…",stopping:"Parando…",validate_ok:"✅ Sintaxe OK.",
+      vars:"Variáveis",stats_title:"Estatísticas",
+      about_body:"EasyScript v5.0.0 — autossuficiente.\nTroca total de idioma ao vivo.",
+      language_changed:"Idioma:",lang_reset:"↩ Idioma restabelecido:",
+      mode_reset:"↩ Modo restabelecido:",palette_reset:"↩ Paleta restabelecida:",
+      mode_set:"Modo:",palette_set:"Paleta:",sidebar:"Explorador",project:"Projeto",
+      refresh:"Recarregar",new_tab_title:"Sem título",btn_new:"Novo",btn_open:"Abrir",
+      btn_save:"Salvar",btn_run:"Executar",btn_stop:"Parar",btn_console:"Console",
+      btn_canvas:"Canvas",btn_find:"Localizar",btn_help:"Ajuda",btn_debug:"Depurar",
+      btn_step:"Passo",btn_format:"Formatar",btn_test:"Testes",btn_snippets:"Snippets",
+      dlg_search:"Localizar:",dlg_replace:"Substituir:",dlg_regex:"Regex",
+      dlg_find_btn:"Localizar",dlg_replace_all:"Substituir tudo",dlg_watch_add:"Adicionar",
+      dlg_close:"Fechar",msg_select_code:"Selecione o código primeiro.",
+      msg_confirm_close:"O documento tem alterações não salvas. Fechar?",
+      msg_already_running:"Já existe uma execução em andamento.",
+      msg_extract_hint:"Selecione o bloco a extrair.",
+      dlg_tab_size:"Tamanho do tab (2-8):",dlg_font_prompt:"Nome da fonte:",
+      dlg_goto:"Ir para linha",dlg_goto_num:"Número:",dlg_rename_old:"Variável atual:",
+      dlg_rename_new:"Novo nome:",dlg_extract_name:"Nome da função:",
+      search_placeholder:"Texto:",results_title:"Resultados",no_matches:"Sem correspondências.",
+      ref_title:"REFERÊNCIA DE COMANDOS",
+      ref_intro:"Comandos funcionam em PT / ES / EN. Ex: exibir / mostrar / show.",
+      ref_control:"CONTROLE DE FLUXO",ref_funcs:"FUNÇÕES",
+      ref_classes:"CLASSES E OBJETOS",ref_tests:"TESTES",
+      ref_events:"EVENTOS E TIMERS",ref_sprites:"SPRITES E JOGO",
+      ref_modules:"MÓDULOS",ref_stdlib:"BIBLIOTECA PADRÃO",ref_audio:"ÁUDIO",
+      ref_video:"IDIOMA E VÍDEO",ref_achievements:"CONQUISTAS",
+      ref_shortcuts:"ATALHOS DA IDE",ref_toggle:"COMPORTAMENTO TOGGLE",
+      ref_toggle_help:"Clique no idioma já ativo (≠ Espanhol) → volta ao Espanhol.\nClique no modo já ativo (≠ Normal) → volta ao Normal.\nClique na paleta já ativa (≠ NES) → volta à NES.",
+      console_t:"CONSOLE",canvas_t:"CANVAS",
+    },
+  },
+  CMD: {
+    mostrar:{en:"show",pt:"exibir"},print:{en:"print",pt:"imprimir"},
+    limpiar_pantalla:{en:"clear_screen",pt:"limpar_tela"},
+    limpiar_consola:{en:"clear_console",pt:"limpar_console"},
+    var:{en:"let",pt:"var"},incrementar:{en:"increment",pt:"incrementar"},
+    decrementar:{en:"decrement",pt:"decrementar"},
+    entrada:{en:"input",pt:"entrada"},asignar:{en:"set",pt:"definir"},
+    mayusculas:{en:"uppercase",pt:"maiusculas"},
+    minusculas:{en:"lowercase",pt:"minusculas"},
+    longitud:{en:"length",pt:"comprimento"},reemplazar:{en:"replace",pt:"substituir"},
+    concatenar:{en:"concat",pt:"concatenar"},
+    dividir_texto:{en:"split_text",pt:"dividir_texto"},
+    indice:{en:"index",pt:"indice"},invertir:{en:"reverse",pt:"inverter"},
+    unir:{en:"join",pt:"unir"},trim:{en:"trim",pt:"trim"},
+    trim_izq:{en:"ltrim",pt:"ltrim"},trim_der:{en:"rtrim",pt:"rtrim"},
+    subcadena:{en:"substring",pt:"subcadeia"},
+    empieza_con:{en:"starts_with",pt:"comeca_com"},
+    termina_con:{en:"ends_with",pt:"termina_com"},
+    buscar_pos:{en:"find_pos",pt:"buscar_pos"},
+    capitalizar:{en:"capitalize",pt:"capitalizar"},
+    repetir_texto:{en:"repeat_text",pt:"repetir_texto"},
+    formato:{en:"format_text",pt:"formatar_texto"},
+    tipo_dato:{en:"data_type",pt:"tipo_dado"},a_numero:{en:"to_number",pt:"para_numero"},
+    a_texto:{en:"to_text",pt:"para_texto"},a_lista:{en:"to_list",pt:"para_lista"},
+    ordenar:{en:"sort",pt:"ordenar"},contar:{en:"count",pt:"contar"},
+    lista:{en:"list",pt:"lista"},agregar:{en:"append",pt:"adicionar"},
+    quitar:{en:"remove",pt:"remover"},obtener:{en:"get",pt:"obter"},
+    longitud_lista:{en:"list_len",pt:"comprimento_lista"},
+    suma_lista:{en:"list_sum",pt:"soma_lista"},
+    max_lista:{en:"list_max",pt:"max_lista"},min_lista:{en:"list_min",pt:"min_lista"},
+    promedio_lista:{en:"list_avg",pt:"media_lista"},
+    unir_lista:{en:"list_join",pt:"juntar_lista"},
+    filtro_pares:{en:"filter_even",pt:"filtro_pares"},
+    filtro_impares:{en:"filter_odd",pt:"filtro_impares"},
+    mapear_doble:{en:"map_double",pt:"mapear_duplo"},
+    indice_lista:{en:"list_index",pt:"indice_lista"},
+    contar_valor:{en:"count_value",pt:"contar_valor"},
+    aplanar:{en:"flatten",pt:"achatar"},unico:{en:"unique",pt:"unico"},
+    zip_lista:{en:"zip_list",pt:"zip_lista"},rango:{en:"range_list",pt:"intervalo"},
+    eliminar_duplicados:{en:"dedupe",pt:"remover_duplicados"},
+    contiene:{en:"contains",pt:"contem"},
+    random:{en:"random",pt:"aleatorio"},raiz:{en:"sqrt",pt:"raiz"},
+    potencia:{en:"power",pt:"potencia"},redondear:{en:"round",pt:"arredondar"},
+    absoluto:{en:"abs",pt:"absoluto"},seno:{en:"sin",pt:"seno"},
+    coseno:{en:"cos",pt:"cosseno"},maximo:{en:"max",pt:"maximo"},
+    minimo:{en:"min",pt:"minimo"},pi:{en:"pi",pt:"pi"},
+    tangente:{en:"tan",pt:"tangente"},arcoseno:{en:"asin",pt:"arcoseno"},
+    arcocoseno:{en:"acos",pt:"arcocosseno"},
+    arcotangente:{en:"atan",pt:"arcotangente"},
+    log_natural:{en:"ln",pt:"log_natural"},
+    log_base10:{en:"log10",pt:"log_base10"},
+    log_base:{en:"log_base",pt:"log_base"},
+    exponencial:{en:"exp",pt:"exponencial"},factorial:{en:"fact",pt:"fatorial"},
+    gcd:{en:"gcd",pt:"mdc"},lcm:{en:"lcm",pt:"mmc"},
+    piso:{en:"floor",pt:"piso"},techo:{en:"ceil",pt:"teto"},
+    truncar:{en:"trunc",pt:"truncar"},signo:{en:"sign",pt:"sinal"},
+    sumar:{en:"add",pt:"somar"},restar:{en:"subtract",pt:"subtrair"},
+    multiplicar:{en:"multiply",pt:"multiplicar"},
+    dividir:{en:"divide",pt:"dividir"},modulo:{en:"modulo",pt:"modulo"},
+    semilla:{en:"seed",pt:"semente"},
+    random_flotante:{en:"random_float",pt:"aleatorio_flutuante"},
+    elegir:{en:"choice",pt:"escolher"},barajar:{en:"shuffle",pt:"embaralhar"},
+    muestra:{en:"sample",pt:"amostra"},
+    igual_a:{en:"equals",pt:"igual_a"},
+    mayor_que:{en:"greater_than",pt:"maior_que"},
+    menor_que:{en:"less_than",pt:"menor_que"},y:{en:"and",pt:"e"},o:{en:"or",pt:"ou"},
+    no:{en:"not",pt:"nao"},bit_and:{en:"bit_and",pt:"bit_and"},
+    bit_or:{en:"bit_or",pt:"bit_or"},bit_xor:{en:"bit_xor",pt:"bit_xor"},
+    bit_not:{en:"bit_not",pt:"bit_not"},shl:{en:"shift_left",pt:"deslocar_esq"},
+    shr:{en:"shift_right",pt:"deslocar_dir"},
+    fecha:{en:"date",pt:"data"},hora:{en:"time",pt:"hora"},
+    hora_actual:{en:"current_time",pt:"hora_atual"},
+    fecha_hora:{en:"datetime",pt:"data_hora"},año:{en:"year",pt:"ano"},
+    mes:{en:"month",pt:"mes"},dia:{en:"day",pt:"dia"},
+    hora_num:{en:"hour",pt:"hora_num"},minuto:{en:"minute",pt:"minuto"},
+    segundo:{en:"second",pt:"segundo"},timestamp:{en:"timestamp",pt:"timestamp"},
+    formatear_fecha:{en:"format_date",pt:"formatar_data"},
+    esperar:{en:"wait",pt:"esperar"},alerta:{en:"alert",pt:"alerta"},
+    confirmar:{en:"confirm",pt:"confirmar"},
+    abrir_url:{en:"open_url",pt:"abrir_url"},copiar:{en:"copy",pt:"copiar"},
+    notificacion:{en:"notify",pt:"notificacao"},pitido:{en:"beep",pt:"apito"},
+    beep:{en:"tone",pt:"tom"},esperar_tecla:{en:"wait_key",pt:"esperar_tecla"},
+    ejecutar_cmd:{en:"run_cmd",pt:"executar_cmd"},
+    ejecutar_shell:{en:"shell",pt:"shell"},detener:{en:"stop",pt:"parar"},
+    sistema:{en:"os_name",pt:"sistema"},arquitectura:{en:"arch",pt:"arquitetura"},
+    usuario:{en:"user",pt:"usuario"},cwd:{en:"cwd",pt:"cwd"},
+    variable_entorno:{en:"env_var",pt:"variavel_ambiente"},
+    proceso_id:{en:"pid",pt:"pid"},
+    crear_archivo:{en:"create_file",pt:"criar_arquivo"},
+    leer_archivo:{en:"read_file",pt:"ler_arquivo"},
+    existe_archivo:{en:"file_exists",pt:"arquivo_existe"},
+    eliminar_archivo:{en:"delete_file",pt:"deletar_arquivo"},
+    listar_archivos:{en:"list_files",pt:"listar_arquivos"},
+    copiar_archivo:{en:"copy_file",pt:"copiar_arquivo"},
+    mover_archivo:{en:"move_file",pt:"mover_arquivo"},
+    renombrar_archivo:{en:"rename_file",pt:"renomear_arquivo"},
+    tamano_archivo:{en:"file_size",pt:"tamanho_arquivo"},
+    crear_carpeta:{en:"mkdir",pt:"criar_pasta"},
+    eliminar_carpeta:{en:"rmdir",pt:"deletar_pasta"},
+    leer_lineas:{en:"read_lines",pt:"ler_linhas"},
+    escribir_lineas:{en:"write_lines",pt:"escrever_linhas"},
+    agregar_archivo:{en:"append_file",pt:"anexar_arquivo"},
+    listar_extension:{en:"list_by_ext",pt:"listar_extensao"},
+    ruta_absoluta:{en:"abspath",pt:"caminho_absoluto"},
+    ruta_unir:{en:"path_join",pt:"unir_caminho"},
+    nombre_archivo:{en:"basename",pt:"nome_arquivo"},
+    carpeta_padre:{en:"dirname",pt:"pasta_pai"},
+    extension_archivo:{en:"file_ext",pt:"extensao_arquivo"},
+    json_dumps:{en:"json_encode",pt:"json_codificar"},
+    json_loads:{en:"json_decode",pt:"json_decodificar"},
+    json_guardar:{en:"json_save",pt:"json_salvar"},
+    json_cargar:{en:"json_load",pt:"json_carregar"},
+    json_valido:{en:"json_valid",pt:"json_valido"},
+    json_obtener:{en:"json_get",pt:"json_obter"},
+    hash_md5:{en:"md5",pt:"md5"},hash_sha256:{en:"sha256",pt:"sha256"},
+    hash_sha1:{en:"sha1",pt:"sha1"},
+    base64_cod:{en:"b64_encode",pt:"b64_codificar"},
+    base64_dec:{en:"b64_decode",pt:"b64_decodificar"},
+    uuid:{en:"uuid",pt:"uuid"},
+    regex_buscar:{en:"regex_find",pt:"regex_buscar"},
+    regex_reemplazar:{en:"regex_replace",pt:"regex_substituir"},
+    regex_match:{en:"regex_match",pt:"regex_match"},
+    regex_split:{en:"regex_split",pt:"regex_dividir"},
+    regex_grupos:{en:"regex_groups",pt:"regex_grupos"},
+    regex_escapar:{en:"regex_escape",pt:"regex_escapar"},
+    csv_parsear:{en:"csv_parse",pt:"csv_parsear"},
+    csv_generar:{en:"csv_build",pt:"csv_gerar"},
+    http_get:{en:"http_get",pt:"http_get"},
+    http_post:{en:"http_post",pt:"http_post"},
+    http_put:{en:"http_put",pt:"http_put"},
+    http_delete:{en:"http_delete",pt:"http_delete"},
+    url_codificar:{en:"url_encode",pt:"url_codificar"},
+    url_decodificar:{en:"url_decode",pt:"url_decodificar"},
+    resolver_dns:{en:"dns_resolve",pt:"resolver_dns"},
+    si:{en:"if",pt:"se"},sino:{en:"else",pt:"senao"},
+    fin_si:{en:"end_if",pt:"fim_se"},mientras:{en:"while",pt:"enquanto"},
+    fin_mientras:{en:"end_while",pt:"fim_enquanto"},
+    bucle:{en:"loop",pt:"loop"},fin_bucle:{en:"end_loop",pt:"fim_loop"},
+    romper:{en:"break",pt:"quebrar"},continuar:{en:"continue",pt:"continuar"},
+    funcion:{en:"function",pt:"funcao"},fin_funcion:{en:"end_function",pt:"fim_funcao"},
+    llamar:{en:"call",pt:"chamar"},retornar:{en:"return",pt:"retornar"},
+    clase:{en:"class",pt:"classe"},fin_clase:{en:"end_class",pt:"fim_classe"},
+    hereda:{en:"inherits",pt:"herda"},nuevo:{en:"new",pt:"novo"},
+    llamar_metodo:{en:"method",pt:"metodo"},
+    propiedad:{en:"property",pt:"propriedade"},
+    emitir:{en:"emit",pt:"emitir"},al:{en:"on",pt:"ao"},
+    cada:{en:"every",pt:"cada"},
+    cancelar_timer:{en:"cancel_timer",pt:"cancelar_timer"},
+    animar:{en:"animate",pt:"animar"},
+    tecla_al:{en:"on_key",pt:"tecla_ao"},raton_al:{en:"on_mouse",pt:"rato_ao"},
+    sprite:{en:"sprite",pt:"sprite"},
+    mover_sprite:{en:"move_sprite",pt:"mover_sprite"},
+    dibujar_sprite:{en:"draw_sprite",pt:"desenhar_sprite"},
+    colisiona:{en:"collides",pt:"colide"},
+    gravedad:{en:"gravity",pt:"gravidade"},
+    musica:{en:"music",pt:"musica"},nota:{en:"note",pt:"nota"},
+    afirmar_igual:{en:"assert_equal",pt:"afirmar_igual"},
+    afirmar_verdad:{en:"assert_true",pt:"afirmar_verdade"},
+    afirmar_falso:{en:"assert_false",pt:"afirmar_falso"},
+    test:{en:"test",pt:"teste"},fin_test:{en:"end_test",pt:"fim_teste"},
+    logro:{en:"achievement",pt:"conquista"},importar:{en:"import",pt:"importar"},
+    log_info:{en:"log_info",pt:"log_info"},log_warn:{en:"log_warn",pt:"log_warn"},
+    log_error:{en:"log_error",pt:"log_error"},color:{en:"color",pt:"cor"},
+    linea:{en:"line",pt:"linha"},conectar:{en:"connect",pt:"conectar"},
+    rectangulo:{en:"rectangle",pt:"retangulo"},circulo:{en:"circle",pt:"circulo"},
+    ovalo:{en:"oval",pt:"oval"},triangulo:{en:"triangle",pt:"triangulo"},
+    poligono:{en:"polygon",pt:"poligono"},arco:{en:"arc",pt:"arco"},
+    texto_canvas:{en:"canvas_text",pt:"texto_canvas"},
+    color_canvas:{en:"canvas_color",pt:"cor_canvas"},
+    grosor_linea:{en:"line_width",pt:"espessura_linha"},
+    borrar_canvas:{en:"clear_canvas",pt:"apagar_canvas"},
+    cuadricula:{en:"grid",pt:"grade"},rgb:{en:"rgb",pt:"rgb"},
+    pixel:{en:"pixel",pt:"pixel"},modo_grafico:{en:"video_mode",pt:"modo_grafico"},
+    paleta:{en:"palette",pt:"paleta"},idioma:{en:"language",pt:"idioma"},
+  },
+};
+
+class I18n {
+  constructor(lang="es"){ this.lang = lang; this._rebuild(); }
+  set_lang(l){ if(I18N.LANGS.includes(l)){ this.lang = l; this._rebuild(); } }
+  _rebuild(){
+    this.reverse = {};
+    for(const c in I18N.CMD){
+      this.reverse[c] = c;
+      if(this.lang !== "es"){
+        const a = I18N.CMD[c][this.lang];
+        if(a) this.reverse[a] = c;
+      }
+    }
+  }
+  t(k){ return (I18N.UI[this.lang] && I18N.UI[this.lang][k]) || I18N.UI.es[k] || k; }
+  translate_line(line){
+    const m = line.match(/^(\s*)([A-Za-z_ñÑáéíóúÁÉÍÓÚ][A-Za-z0-9_ñÑáéíóúÁÉÍÓÚ]*)(\s*[: ])(.*)$/);
+    if(!m) return line;
+    const [,ind,cmd,sep,rest] = m;
+    const c = this.reverse[cmd];
+    if(c && c !== cmd) return ind + c + sep + rest;
+    return line;
+  }
+  command_list(){
+    const out = new Set();
+    for(const c in I18N.CMD){
+      out.add(c + ":");
+      const a = I18N.CMD[c][this.lang];
+      if(a) out.add(a + ":");
+    }
+    return [...out].sort();
+  }
+}
+
+/* =========================================================
+   1) Paletas y modos gráficos (idénticos al .py)
+   ========================================================= */
+const PALETTES = {
+  nes:{negro:"#000000",blanco:"#fcfcfc",gris:"#bcbcbc",rojo:"#f83800",verde:"#00a800",azul:"#0058f8",amarillo:"#f8b800",naranja:"#f87858",morado:"#b800b8",cian:"#3cbcfc",rosa:"#f878f8",marron:"#503000",dorado:"#fce0a8",plateado:"#c4c4c4",violeta:"#9878f8"},
+  gameboy:{negro:"#0f380f",blanco:"#9bbc0f",gris:"#8bac0f",rojo:"#306230",verde:"#8bac0f",azul:"#0f380f",amarillo:"#9bbc0f",naranja:"#306230",morado:"#306230",cian:"#8bac0f",rosa:"#9bbc0f",marron:"#0f380f",dorado:"#9bbc0f",plateado:"#8bac0f",violeta:"#306230"},
+  cga:{negro:"#000000",blanco:"#ffffff",gris:"#aaaaaa",rojo:"#ff55ff",verde:"#55ffff",azul:"#5555ff",amarillo:"#ffff55",naranja:"#ff5555",morado:"#ff55ff",cian:"#55ffff",rosa:"#ff55ff",marron:"#aa5500",dorado:"#ffff55",plateado:"#aaaaaa",violeta:"#ff55ff"},
+  snes:{negro:"#000000",blanco:"#f8f8f8",gris:"#a0a0a0",rojo:"#e02020",verde:"#20b020",azul:"#2040d0",amarillo:"#f0d020",naranja:"#f07020",morado:"#a020a0",cian:"#20c0c0",rosa:"#f090a0",marron:"#704020",dorado:"#e0c060",plateado:"#c8c8c8",violeta:"#8050c0"},
+  vga:{negro:"#000000",blanco:"#ffffff",gris:"#a0a0a0",rojo:"#a80000",verde:"#00a800",azul:"#0000a8",amarillo:"#a8a800",naranja:"#a85400",morado:"#a800a8",cian:"#00a8a8",rosa:"#ff80c0",marron:"#804000",dorado:"#ffd700",plateado:"#c0c0c0",violeta:"#8000ff"},
+  sinclair:{negro:"#000000",blanco:"#ffffff",gris:"#c0c0c0",rojo:"#d00000",verde:"#00d000",azul:"#0000d0",amarillo:"#d0d000",naranja:"#d06000",morado:"#d000d0",cian:"#00d0d0",rosa:"#d08080",marron:"#804000",dorado:"#d0c000",plateado:"#c0c0c0",violeta:"#8000d0"},
+};
+const MODES = {
+  normal:{
+    name:"Normal (24-bit)",pixel_scale:1,scanlines:false,
+    bg:"#1e272e",fg:"#ffffff",
+    editor_bg:"#282c34",editor_fg:"#ffffff",
+    editor_ln_bg:"#282c34",editor_ln_fg:"#7f8c8d",
+    console_bg:"#1e272e",console_fg:"#ffffff",
+    sidebar_bg:"#2c3e50",sidebar_fg:"#ffffff",sidebar_hdr:"#1f2a35",
+    toolbar_bg:"#2c3e50",toolbar_fg:"#ffffff",
+    statusbar_bg:"#2c3e50",statusbar_fg:"#ffffff",
+    menubar_bg:"#1a222c",menubar_fg:"#ffffff",
+    font_family:"Consolas,'Courier New',monospace",font_size:11,
+  },
+  "8bit":{
+    name:"8-bit (256 col.)",pixel_scale:2,scanlines:true,
+    bg:"#101010",fg:"#fcfcfc",
+    editor_bg:"#0a0a0a",editor_fg:"#c8f0c8",
+    editor_ln_bg:"#050505",editor_ln_fg:"#4a7a4a",
+    console_bg:"#0a0a0a",console_fg:"#a8e0a8",
+    sidebar_bg:"#0a0a0a",sidebar_fg:"#c8f0c8",sidebar_hdr:"#000000",
+    toolbar_bg:"#0a0a0a",toolbar_fg:"#c8f0c8",
+    statusbar_bg:"#0a0a0a",statusbar_fg:"#a8e0a8",
+    menubar_bg:"#0a0a0a",menubar_fg:"#c8f0c8",
+    font_family:"'Courier New',monospace",font_size:11,
+  },
+  "16bit":{
+    name:"16-bit (65 K col.)",pixel_scale:1,scanlines:false,
+    bg:"#000020",fg:"#f8f8f8",
+    editor_bg:"#000030",editor_fg:"#f8e0a8",
+    editor_ln_bg:"#000018",editor_ln_fg:"#8080c0",
+    console_bg:"#000030",console_fg:"#f8e0a8",
+    sidebar_bg:"#000040",sidebar_fg:"#f8e0a8",sidebar_hdr:"#000030",
+    toolbar_bg:"#000040",toolbar_fg:"#f8e0a8",
+    statusbar_bg:"#000030",statusbar_fg:"#f8e0a8",
+    menubar_bg:"#000030",menubar_fg:"#f8e0a8",
+    font_family:"'Lucida Console',monospace",font_size:11,
+  },
+};
+function hexToRgb(c){ c=c.replace("#",""); if(c.length===3)c=c.split("").map(x=>x+x).join(""); return [parseInt(c.slice(0,2),16),parseInt(c.slice(2,4),16),parseInt(c.slice(4,6),16)]; }
+function rgbToHex(r,g,b){ return "#"+[r,g,b].map(x=>Math.max(0,Math.min(255,Math.round(x))).toString(16).padStart(2,"0")).join(""); }
+function quantize(color, mode, paletteName){
+  if(mode === "normal" || !color) return color;
+  if(color.startsWith("rgb")){ const m=color.match(/\d+/g); if(m&&m.length>=3) color=rgbToHex(+m[0],+m[1],+m[2]); }
+  if(!color.startsWith("#")) return color;
+  if(mode === "8bit"){
+    const pal = PALETTES[paletteName] || PALETTES.nes;
+    const [r,g,b] = hexToRgb(color);
+    let best = color, bd = Infinity;
+    for(const n in pal){ const [pr,pg,pb]=hexToRgb(pal[n]); const d=(r-pr)**2+(g-pg)**2+(b-pb)**2; if(d<bd){bd=d;best=pal[n];} }
+    return best;
+  }
+  if(mode === "16bit"){ const [r,g,b]=hexToRgb(color); return rgbToHex((r>>3)<<3,(g>>3)<<3,(b>>3)<<3); }
+  return color;
+}
+const COLOR_MAP = {
+  rojo:"#e74c3c",azul:"#3498db",verde:"#2ecc71",amarillo:"#f1c40f",
+  naranja:"#e67e22",morado:"#9b59b6",rosa:"#fd79a8",negro:"#2c3e50",
+  blanco:"#ffffff",gris:"#95a5a6",cian:"#00cec9",violeta:"#a29bfe",
+  marron:"#6d4c41","marrón":"#6d4c41",dorado:"#fdcb6e",plateado:"#b2bec3",
+};
+
+/* =========================================================
+   2) Señales internas
+   ========================================================= */
+class ReturnSignal{ constructor(v){ this.value = v; } }
+class BreakSignal{}
+class ContinueSignal{}
+
+/* =========================================================
+   3) Sprite / EZObject
+   ========================================================= */
+class Sprite{
+  constructor(n,x=0,y=0,w=8,h=8,c="#ffffff",vx=0,vy=0){
+    this.name=n;this.x=x;this.y=y;this.w=w;this.h=h;this.color=c;this.vx=vx;this.vy=vy;
+  }
+  rect(){ return [this.x,this.y,this.x+this.w,this.y+this.h]; }
+  intersects(o){
+    const [ax1,ay1,ax2,ay2]=this.rect(); const [bx1,by1,bx2,by2]=o.rect();
+    return !(ax2<bx1||bx2<ax1||ay2<by1||by2<ay1);
+  }
+}
+class EZObject{ constructor(c){ this.cls_name=c; this.fields={}; this.methods={}; } }
+
+/* =========================================================
+   4) Parser de argumentos
+   ========================================================= */
+function parseArgs(str){
+  str = String(str||"").trim();
+  if(str.startsWith("(") && str.endsWith(")")) str = str.slice(1,-1);
+  const parts = [];
+  let depth = 0, cur = "", inStr = false, strCh = "";
+  for(let i = 0; i < str.length; i++){
+    const c = str[i];
+    if(inStr){
+      cur += c;
+      if(c === strCh && str[i-1] !== "\\") inStr = false;
+      continue;
+    }
+    if(c === '"' || c === "'"){ inStr = true; strCh = c; cur += c; continue; }
+    if(c === "(" || c === "[") depth++;
+    if(c === ")" || c === "]") depth--;
+    if(c === "," && depth === 0){ parts.push(cur.trim()); cur = ""; continue; }
+    cur += c;
+  }
+  if(cur.trim() || parts.length) parts.push(cur.trim());
+  return parts;
+}
+
+/* =========================================================
+   5) Intérprete
+   ========================================================= */
+class Interpreter{
+  constructor(i18n){
+    this.i18n = i18n;
+    this.variables = {};
+    this.functions = {};
+    this.classes = {};
+    this.sprites = {};
+    this.events = {};
+    this.timers = {};
+    this.modules = {};
+    this.breakpoints = new Set();
+    this.debug_mode = false;
+    this.step_mode = false;
+    this.call_stack = [];
+    this.line_times = {};
+    this.should_stop = false;
+    this.text_positions = {};
+    this.current_line_width = 3;
+    this.current_draw_color = "#0984e3";
+    this.show_timestamps = false;
+    this.execution_start = 0;
+    this.execution_time = 0;
+    this.executed_lines = 0;
+    this.last_error_line = null;
+    this.test_results = [];
+    this.achievements = [];
+    this.vfs = {};
+    this.mode = "normal"; this.palette = "nes";
+  }
+
+  get_color(val){
+    let c = String(val).trim().toLowerCase().replace(/^["']|["']$/g,"");
+    if(COLOR_MAP[c]) c = COLOR_MAP[c];
+    return quantize(c, app.state.mode, app.state.palette);
+  }
+
+  log(text, level="info"){
+    const prefix = this.show_timestamps ? `[${new Date().toTimeString().slice(0,8)}] ` : "";
+    const line = document.createElement("span");
+    line.className = level;
+    line.textContent = prefix + String(text) + "\n";
+    app.consoleEl.appendChild(line);
+    app.consoleEl.scrollTop = app.consoleEl.scrollHeight;
+  }
+  log_info(t){ this.log("ℹ️  " + t, "info"); }
+  log_warn(t){ this.log("⚠️  " + t, "warn"); }
+  log_error(t){ this.log("❌ " + t, "error"); }
+  log_success(t){ this.log("✅ " + t, "success"); }
+
+  eval_expr(expr){
+    if(expr === undefined || expr === null) return "";
+    expr = String(expr).trim();
+    if(!expr) return "";
+    if((expr.startsWith('"') && expr.endsWith('"')) ||
+       (expr.startsWith("'") && expr.endsWith("'"))) return expr.slice(1,-1);
+    if(expr === "true" || expr === "verdadero") return true;
+    if(expr === "false" || expr === "falso") return false;
+    if(/^-?\d+$/.test(expr)) return parseInt(expr, 10);
+    if(/^-?\d+\.\d+$/.test(expr)) return parseFloat(expr);
+    if(/^[a-zA-Z_ñÑáéíóúÁÉÍÓÚ][A-Za-z0-9_ñÑáéíóúÁÉÍÓÚ]*$/.test(expr)){
+      if(expr in this.variables) return this.variables[expr];
+      return expr;
+    }
+    if(expr.startsWith("[") && expr.endsWith("]")){
+      const inner = expr.slice(1,-1).trim();
+      if(!inner) return [];
+      return parseArgs(inner).map(e => this.eval_expr(e));
+    }
+    let jsExpr = expr;
+    for(const k in this.variables){
+      if(/^[a-zA-Z_ñÑáéíóúÁÉÍÓÚ][A-Za-z0-9_ñÑáéíóúÁÉÍÓÚ]*$/.test(k)){
+        const re = new RegExp("\\b" + k.replace(/[.*+?^${}()|[\]\\]/g,"\\$&") + "\\b","g");
+        jsExpr = jsExpr.replace(re, JSON.stringify(this.variables[k]));
+      }
+    }
+    try{ return Function('"use strict";return ('+jsExpr+');')(); }
+    catch(e){ return expr; }
+  }
+  _eval_cond(expr){
+    expr = String(expr).trim();
+    if(expr.startsWith("(") && expr.endsWith(")")) expr = expr.slice(1,-1).trim();
+    const v = this.eval_expr(expr);
+    if(typeof v === "string"){
+      const l = v.toLowerCase();
+      if(["true","verdadero","1"].includes(l)) return true;
+      if(["false","falso","0",""].includes(l)) return false;
+      return Boolean(v);
+    }
+    return Boolean(v);
+  }
+
+  validate(code){
+    const problems = [];
+    code.split("\n").forEach((line, i) => {
+      const s = this.i18n.translate_line(line.trim());
+      if(!s || s.startsWith("//")) return;
+      const op = (s.match(/\(/g)||[]).length;
+      const cp = (s.match(/\)/g)||[]).length;
+      if(op !== cp) problems.push([i+1, "Paréntesis desbalanceados"]);
+      const ob = (s.match(/\[/g)||[]).length;
+      const cb = (s.match(/\]/g)||[]).length;
+      if(ob !== cb) problems.push([i+1, "Corchetes desbalanceados"]);
+    });
+    return problems;
+  }
+
+  _find_block_end(lines, start, end, openKw, closeKw){
+    let depth = 1;
+    for(let j = start+1; j < end; j++){
+      const t = this.i18n.translate_line(lines[j].text.trim());
+      if(t.startsWith(openKw)) depth++;
+      else if(t.startsWith(closeKw)){ depth--; if(depth === 0) return j; }
+    }
+    return end;
+  }
+  _find_if_structure(lines, start, end){
+    let depth = 1, elseIdx = null;
+    for(let j = start+1; j < end; j++){
+      const t = this.i18n.translate_line(lines[j].text.trim());
+      if(t.startsWith("si:")) depth++;
+      else if(t.startsWith("fin_si")){ depth--; if(depth === 0) return { elseIdx, endIdx: j }; }
+      else if(depth === 1 && t.startsWith("sino")) elseIdx = j;
+    }
+    return { elseIdx, endIdx: end };
+  }
+
+  async execute(code){
+    this.variables = {};
+    this.functions = {};
+    this.classes = {};
+    this.sprites = {};
+    this.events = {};
+    this.timers = {};
+    this.modules = {};
+    this.should_stop = false;
+    this.executed_lines = 0;
+    this.last_error_line = null;
+    this.call_stack = [];
+    this.line_times = {};
+    this.test_results = [];
+    this.achievements = [];
+    app.clearConsole();
+    app.clearCanvas();
+    this.current_draw_color = "#0984e3";
+    this.current_line_width = 3;
+    this.execution_start = performance.now();
+
+    const raw = code.split("\n");
+    const lines = raw.map((t,i)=>({num:i+1, text:t}));
+    try{
+      await this.run_block(lines, 0, lines.length);
+    }catch(e){
+      if(e instanceof ReturnSignal || e instanceof BreakSignal || e instanceof ContinueSignal){}
+      else this.log_error(e.message || String(e));
+    }
+    this.execution_time = (performance.now() - this.execution_start) / 1000;
+    this.log("", "info");
+    const passed = this.test_results.filter(r => r[1]).length;
+    const total = this.test_results.length;
+    const extra = total ? ` · Tests ${passed}/${total}` : "";
+    this.log_success(`${this.execution_time.toFixed(3)}s · ${this.executed_lines} stmt · ${Object.keys(this.variables).length} vars${extra}`);
+    app.onExecutionFinished(this.execution_time, this.executed_lines);
+  }
+
+  async run_block(lines, start=0, end=null){
+    if(end === null) end = lines.length;
+    let i = start;
+    while(i < end && !this.should_stop){
+      const raw = lines[i].text;
+      const ln = lines[i].num;
+      const line = this.i18n.translate_line(raw.trim());
+      if(!line || line.startsWith("//")){ i++; continue; }
+
+      if(line.startsWith("si:")){
+        const cond = line.slice(3).trim();
+        const { elseIdx, endIdx } = this._find_if_structure(lines, i, end);
+        try{
+          if(this._eval_cond(cond)) await this.run_block(lines, i+1, elseIdx !== null ? elseIdx : endIdx);
+          else if(elseIdx !== null) await this.run_block(lines, elseIdx+1, endIdx);
+        }catch(e){
+          if(e instanceof ReturnSignal) throw e;
+          if(e instanceof BreakSignal) return;
+          if(!(e instanceof ContinueSignal)) throw e;
+        }
+        i = endIdx + 1; continue;
+      }
+      if(line.startsWith("mientras:")){
+        const cond = line.slice(8).trim();
+        const endIdx = this._find_block_end(lines, i, end, "mientras:", "fin_mientras");
+        let guard = 0;
+        while(this._eval_cond(cond) && !this.should_stop && guard < 1000000){
+          try{ await this.run_block(lines, i+1, endIdx); }
+          catch(e){
+            if(e instanceof ReturnSignal) throw e;
+            if(e instanceof BreakSignal) break;
+            if(!(e instanceof ContinueSignal)) throw e;
+          }
+          guard++;
+          if(guard % 100 === 0) await new Promise(r => setTimeout(r, 0));
+        }
+        i = endIdx + 1; continue;
+      }
+      if(line.startsWith("bucle:")){
+        const cnt = line.slice(6).trim();
+        const endIdx = this._find_block_end(lines, i, end, "bucle:", "fin_bucle");
+        const n = parseInt(this.eval_expr(cnt),10) || 0;
+        for(let k = 0; k < Math.max(0,n); k++){
+          if(this.should_stop) break;
+          try{ await this.run_block(lines, i+1, endIdx); }
+          catch(e){
+            if(e instanceof ReturnSignal) throw e;
+            if(e instanceof BreakSignal) break;
+            if(!(e instanceof ContinueSignal)) throw e;
+          }
+        }
+        i = endIdx + 1; continue;
+      }
+      if(line.startsWith("funcion:")){
+        const endIdx = this._find_block_end(lines, i, end, "funcion:", "fin_funcion");
+        const m = line.match(/funcion:\s*\((.*?)\)/);
+        if(m){
+          const parts = parseArgs(m[1]);
+          const name = parts[0].replace(/^["']|["']$/g,"").trim();
+          const params = parts.slice(1);
+          this.functions[name] = { params, body: lines.slice(i+1, endIdx) };
+        }
+        i = endIdx + 1; continue;
+      }
+      if(line.startsWith("clase:")){
+        const endIdx = this._find_block_end(lines, i, end, "clase:", "fin_clase");
+        const m = line.match(/clase:\s*\((.*?)\)/);
+        if(m){
+          const parts = parseArgs(m[1]);
+          const name = parts[0].replace(/^["']|["']$/g,"").trim();
+          const parent = parts[1] ? parts[1].replace(/^["']|["']$/g,"").trim() : null;
+          const body = lines.slice(i+1, endIdx);
+          const methods = {}, fields = {};
+          let j = 0;
+          while(j < body.length){
+            const t = this.i18n.translate_line(body[j].text.trim());
+            if(t.startsWith("funcion:")){
+              const me = this._find_block_end(body, j, body.length, "funcion:", "fin_funcion");
+              const mm = t.match(/funcion:\s*\((.*?)\)/);
+              if(mm){
+                const pp = parseArgs(mm[1]);
+                const mname = pp[0].replace(/^["']|["']$/g,"").trim();
+                const mparams = pp.slice(1);
+                methods[mname] = { params: mparams, body: body.slice(j+1, me) };
+              }
+              j = me + 1;
+            } else if(t.startsWith("propiedad:")){
+              const pm = t.match(/propiedad:\s*\((.*?),(.*?)\)/);
+              if(pm) fields[pm[1].trim()] = this.eval_expr(pm[2]);
+              j++;
+            } else j++;
+          }
+          this.classes[name] = { parent, methods, fields };
+        }
+        i = endIdx + 1; continue;
+      }
+      if(line.startsWith("test:")){
+        const endIdx = this._find_block_end(lines, i, end, "test:", "fin_test");
+        const m = line.match(/test:\s*\((.*?)\)/);
+        const name = m ? m[1].replace(/^["']|["']$/g,"").trim() : "test";
+        try{
+          await this.run_block(lines, i+1, endIdx);
+          this.test_results.push([name, true, ""]);
+          this.log(`  ✅ ${name}`, "test_pass");
+        }catch(e){
+          if(e instanceof ReturnSignal || e instanceof BreakSignal || e instanceof ContinueSignal){
+            this.test_results.push([name, true, ""]);
+            this.log(`  ✅ ${name}`, "test_pass");
+          } else {
+            this.test_results.push([name, false, e.message||String(e)]);
+            this.log(`  ❌ ${name}: ${e.message||e}`, "test_fail");
+          }
+        }
+        i = endIdx + 1; continue;
+      }
+      if(line.startsWith("romper")) throw new BreakSignal();
+      if(line.startsWith("continuar")) throw new ContinueSignal();
+      if(line.startsWith("retornar")){
+        const val = line.slice(8).trim();
+        throw new ReturnSignal(val ? this.eval_expr(val) : null);
+      }
+      if(line === "sino" || line.startsWith("sino:") || line.startsWith("fin_")){ i++; continue; }
+
+      this.executed_lines++;
+      const t0 = performance.now();
+      try{ await this._execute_line(line, ln); }
+      catch(e){
+        if(e instanceof ReturnSignal || e instanceof BreakSignal || e instanceof ContinueSignal) throw e;
+        this.last_error_line = ln;
+        this.log_error(`Error L${ln}: ${e.message||e}`);
+      }
+      this.line_times[ln] = (this.line_times[ln]||0) + (performance.now() - t0);
+      i++;
+    }
+  }
+
+  async _execute_line(line, line_num){
+    const v = this.variables;
+
+    /* SALIDA */
+    if(line.startsWith("mostrar ") || line.startsWith("print ")){
+      this.log(this.eval_expr(line.split(" ",2)[1]), "info"); return;
+    }
+    if(line === "limpiar_pantalla"){ app.clearConsole(); app.clearCanvas(); return; }
+    if(line === "limpiar_consola"){ app.clearConsole(); return; }
+
+    /* VARIABLES */
+    if(line.startsWith("var:")){ const a = parseArgs(line.slice(4)); v[a[0].trim()] = this.eval_expr(a[1]); return; }
+    if(line.startsWith("incrementar:")){ const a = parseArgs(line.slice(12)); v[a[0].trim()] = (parseFloat(v[a[0].trim()])||0) + (parseFloat(this.eval_expr(a[1]))||1); return; }
+    if(line.startsWith("decrementar:")){ const a = parseArgs(line.slice(12)); v[a[0].trim()] = (parseFloat(v[a[0].trim()])||0) - (parseFloat(this.eval_expr(a[1]))||1); return; }
+    if(line.startsWith("entrada:")){ const a = parseArgs(line.slice(8)); v[a[0].trim()] = window.prompt(String(this.eval_expr(a[1]))) || ""; return; }
+    if(line.startsWith("asignar:")){ const a = parseArgs(line.slice(8)); v[a[0].trim()] = this.eval_expr(a[1]); return; }
+
+    /* CADENAS */
+    if(line.startsWith("mayusculas:")){ const a = parseArgs(line.slice(11)); v[a[0].trim()] = String(v[a[0].trim()]||"").toUpperCase(); return; }
+    if(line.startsWith("minusculas:")){ const a = parseArgs(line.slice(11)); v[a[0].trim()] = String(v[a[0].trim()]||"").toLowerCase(); return; }
+    if(line.startsWith("longitud:")){ const a = parseArgs(line.slice(9)); this.log(`📏 Longitud: ${String(this.eval_expr(a[0])).length}`, "info"); return; }
+    if(line.startsWith("reemplazar:")){ const a = parseArgs(line.slice(11)); const k=a[0].trim(); v[k] = String(v[k]||"").split(String(this.eval_expr(a[1]))).join(String(this.eval_expr(a[2]))); return; }
+    if(line.startsWith("concatenar:") || line.startsWith("unir:")){
+      const base = line.startsWith("concatenar:") ? 12 : 4;
+      const a = parseArgs(line.slice(base));
+      v[a[0].trim()] = String(this.eval_expr(a[1])) + String(this.eval_expr(a[2])); return;
+    }
+    if(line.startsWith("dividir_texto:")){ const a = parseArgs(line.slice(14)); v[a[0].trim()] = String(this.eval_expr(a[1])).split(String(this.eval_expr(a[2]))); return; }
+    if(line.startsWith("subcadena:")){
+      const a = parseArgs(line.slice(10));
+      const s = String(this.eval_expr(a[1]));
+      const i0 = parseInt(this.eval_expr(a[2]))||0;
+      const i1 = parseInt(this.eval_expr(a[3]))||s.length;
+      v[a[0].trim()] = s.substring(i0, i1); return;
+    }
+    if(line.startsWith("trim:")){ const a = parseArgs(line.slice(5)); v[a[0].trim()] = String(this.eval_expr(a[1])).trim(); return; }
+    if(line.startsWith("trim_izq:")){ const a = parseArgs(line.slice(9)); v[a[0].trim()] = String(this.eval_expr(a[1])).replace(/^\s+/,""); return; }
+    if(line.startsWith("trim_der:")){ const a = parseArgs(line.slice(9)); v[a[0].trim()] = String(this.eval_expr(a[1])).replace(/\s+$/,""); return; }
+    if(line.startsWith("empieza_con:")){ const a = parseArgs(line.slice(12)); v[a[0].trim()] = String(this.eval_expr(a[1])).startsWith(String(this.eval_expr(a[2]))); return; }
+    if(line.startsWith("termina_con:")){ const a = parseArgs(line.slice(11)); v[a[0].trim()] = String(this.eval_expr(a[1])).endsWith(String(this.eval_expr(a[2]))); return; }
+    if(line.startsWith("buscar_pos:")){ const a = parseArgs(line.slice(11)); v[a[0].trim()] = String(this.eval_expr(a[1])).indexOf(String(this.eval_expr(a[2]))); return; }
+    if(line.startsWith("capitalizar:")){ const a = parseArgs(line.slice(12)); const s = String(this.eval_expr(a[1])); v[a[0].trim()] = s.charAt(0).toUpperCase() + s.slice(1).toLowerCase(); return; }
+    if(line.startsWith("repetir_texto:")){ const a = parseArgs(line.slice(14)); v[a[0].trim()] = String(this.eval_expr(a[1])).repeat(parseInt(this.eval_expr(a[2]))||1); return; }
+    if(line.startsWith("indice:")){
+      const a = parseArgs(line.slice(7));
+      const obj = this.eval_expr(a[1]);
+      const idx = parseInt(this.eval_expr(a[2]))||0;
+      v[a[0].trim()] = (obj && obj[idx] !== undefined) ? obj[idx] : ""; return;
+    }
+    if(line.startsWith("invertir:")){ const a = parseArgs(line.slice(9)); v[a[0].trim()] = String(this.eval_expr(a[1])).split("").reverse().join(""); return; }
+    if(line.startsWith("formato:")){
+      const a = parseArgs(line.slice(8));
+      const tpl = String(this.eval_expr(a[1]));
+      const val = this.eval_expr(a[2]);
+      try{
+        v[a[0].trim()] = Array.isArray(val) ? tpl.replace(/\{(\d+)\}/g,(_,i)=>val[i]) : tpl.replace(/\{0?\}/, val);
+      }catch(e){ v[a[0].trim()] = tpl; }
+      return;
+    }
+    if(line.startsWith("tipo_dato:")){ const a = parseArgs(line.slice(10)); this.log(`ℹ️ Tipo: ${typeof this.eval_expr(a[0])}`, "info"); return; }
+    if(line.startsWith("a_numero:")){ const a = parseArgs(line.slice(10)); v[a[0].trim()] = parseFloat(this.eval_expr(a[1]))||0; return; }
+    if(line.startsWith("a_texto:")){ const a = parseArgs(line.slice(9)); v[a[0].trim()] = String(this.eval_expr(a[1])); return; }
+    if(line.startsWith("a_lista:")){ const a = parseArgs(line.slice(8)); try{ v[a[0].trim()] = Array.from(this.eval_expr(a[1])); }catch(e){ v[a[0].trim()] = []; } return; }
+
+    /* MATEMÁTICAS */
+    const mathOps = {
+      sumar:(a,b)=>a+b,restar:(a,b)=>a-b,multiplicar:(a,b)=>a*b,
+      dividir:(a,b)=>b?a/b:0,modulo:(a,b)=>a%b,
+      maximo:(a,b)=>Math.max(a,b),minimo:(a,b)=>Math.min(a,b),
+      potencia:(a,b)=>Math.pow(a,b),
+      gcd:(a,b)=>{const g=(x,y)=>y?g(y,x%y):Math.abs(x);return g(a,b);},
+      lcm:(a,b)=>{const g=(x,y)=>y?g(y,x%y):Math.abs(x);return (a&&b)?Math.abs(a*b)/g(a,b):0;},
+    };
+    for(const op in mathOps){
+      if(line.startsWith(op + ":")){
+        const a = parseArgs(line.slice(op.length+1));
+        v[a[0].trim()] = mathOps[op](parseFloat(this.eval_expr(a[1]))||0, parseFloat(this.eval_expr(a[2]))||0);
+        return;
+      }
+    }
+    const mathUn = {
+      raiz:x=>Math.sqrt(x||0),redondear:x=>Math.round(x||0),
+      absoluto:x=>Math.abs(x||0),piso:x=>Math.floor(x||0),
+      techo:x=>Math.ceil(x||0),truncar:x=>Math.trunc(x||0),
+      signo:x=>Math.sign(x||0),log_natural:x=>Math.log(x),
+      log_base10:x=>Math.log10(x),exponencial:x=>Math.exp(x),
+      seno:x=>Math.sin(x*Math.PI/180),coseno:x=>Math.cos(x*Math.PI/180),
+      tangente:x=>Math.tan(x*Math.PI/180),
+      arcoseno:x=>Math.asin(x)*180/Math.PI,
+      arcocoseno:x=>Math.acos(x)*180/Math.PI,
+      arcotangente:x=>Math.atan(x)*180/Math.PI,
+    };
+    for(const op in mathUn){
+      if(line.startsWith(op + ":")){
+        const a = parseArgs(line.slice(op.length+1));
+        v[a[0].trim()] = mathUn[op](parseFloat(this.eval_expr(a[1]))||0); return;
+      }
+    }
+    if(line.startsWith("log_base:")){
+      const a = parseArgs(line.slice(9));
+      try{ v[a[0].trim()] = Math.log(parseFloat(this.eval_expr(a[1])))/Math.log(parseFloat(this.eval_expr(a[2]))); }catch(e){}
+      return;
+    }
+    if(line.startsWith("factorial:")){
+      const a = parseArgs(line.slice(10));
+      const n = parseInt(this.eval_expr(a[1]))||0;
+      let f = 1; for(let k=2;k<=n;k++) f*=k;
+      v[a[0].trim()] = f; return;
+    }
+    if(line.startsWith("pi:")){ const a = parseArgs(line.slice(3)); v[a[0].trim()] = Math.PI; return; }
+    if(line.startsWith("random:")){
+      const a = parseArgs(line.slice(7));
+      const lo = parseInt(this.eval_expr(a[1]))||0;
+      const hi = parseInt(this.eval_expr(a[2]))||0;
+      v[a[0].trim()] = Math.floor(Math.random()*(hi-lo+1)) + lo; return;
+    }
+    if(line.startsWith("random_flotante:")){
+      const a = parseArgs(line.slice(16));
+      const lo = parseFloat(this.eval_expr(a[1]))||0;
+      const hi = parseFloat(this.eval_expr(a[2]))||1;
+      v[a[0].trim()] = Math.random()*(hi-lo) + lo; return;
+    }
+    if(line.startsWith("elegir:")){
+      const a = parseArgs(line.slice(7));
+      const arr = this.eval_expr(a[1]);
+      if(Array.isArray(arr) && arr.length) v[a[0].trim()] = arr[Math.floor(Math.random()*arr.length)];
+      return;
+    }
+    if(line.startsWith("barajar:")){
+      const a = parseArgs(line.slice(8));
+      const arr = Array.isArray(this.eval_expr(a[1])) ? [...this.eval_expr(a[1])] : [];
+      for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; }
+      v[a[0].trim()] = arr; return;
+    }
+    if(line.startsWith("muestra:")){
+      const a = parseArgs(line.slice(8));
+      const arr = Array.isArray(this.eval_expr(a[1])) ? [...this.eval_expr(a[1])] : [];
+      const n = parseInt(this.eval_expr(a[2]))||1;
+      const out = [];
+      for(let i=0;i<n && arr.length;i++){ const j=Math.floor(Math.random()*arr.length); out.push(arr.splice(j,1)[0]); }
+      v[a[0].trim()] = out; return;
+    }
+
+    /* LÓGICA */
+    if(line.startsWith("igual_a:")){ const a = parseArgs(line.slice(8)); v[a[0].trim()] = String(this.eval_expr(a[1])) === String(this.eval_expr(a[2])); return; }
+    if(line.startsWith("mayor_que:")){ const a = parseArgs(line.slice(10)); v[a[0].trim()] = parseFloat(this.eval_expr(a[1])) > parseFloat(this.eval_expr(a[2])); return; }
+    if(line.startsWith("menor_que:")){ const a = parseArgs(line.slice(10)); v[a[0].trim()] = parseFloat(this.eval_expr(a[1])) < parseFloat(this.eval_expr(a[2])); return; }
+    if(line.startsWith("y:")){ const a = parseArgs(line.slice(2)); v[a[0].trim()] = Boolean(this.eval_expr(a[1])) && Boolean(this.eval_expr(a[2])); return; }
+    if(line.startsWith("o:")){ const a = parseArgs(line.slice(2)); v[a[0].trim()] = Boolean(this.eval_expr(a[1])) || Boolean(this.eval_expr(a[2])); return; }
+    if(line.startsWith("no:")){ const a = parseArgs(line.slice(3)); v[a[0].trim()] = !Boolean(this.eval_expr(a[1])); return; }
+
+    /* BITS */
+    if(line.startsWith("bit_and:")){ const a = parseArgs(line.slice(8)); v[a[0].trim()] = (parseInt(this.eval_expr(a[1]))||0) & (parseInt(this.eval_expr(a[2]))||0); return; }
+    if(line.startsWith("bit_or:")){ const a = parseArgs(line.slice(7)); v[a[0].trim()] = (parseInt(this.eval_expr(a[1]))||0) | (parseInt(this.eval_expr(a[2]))||0); return; }
+    if(line.startsWith("bit_xor:")){ const a = parseArgs(line.slice(8)); v[a[0].trim()] = (parseInt(this.eval_expr(a[1]))||0) ^ (parseInt(this.eval_expr(a[2]))||0); return; }
+    if(line.startsWith("bit_not:")){ const a = parseArgs(line.slice(8)); v[a[0].trim()] = ~(parseInt(this.eval_expr(a[1]))||0); return; }
+    if(line.startsWith("shl:")){ const a = parseArgs(line.slice(4)); v[a[0].trim()] = (parseInt(this.eval_expr(a[1]))||0) << (parseInt(this.eval_expr(a[2]))||0); return; }
+    if(line.startsWith("shr:")){ const a = parseArgs(line.slice(4)); v[a[0].trim()] = (parseInt(this.eval_expr(a[1]))||0) >> (parseInt(this.eval_expr(a[2]))||0); return; }
+
+    /* LISTAS */
+    if(line.startsWith("lista:")){ const a = parseArgs(line.slice(6)); v[a[0].trim()] = []; return; }
+    if(line.startsWith("agregar:")){ const a = parseArgs(line.slice(8)); if(Array.isArray(v[a[0].trim()])) v[a[0].trim()].push(this.eval_expr(a[1])); return; }
+    if(line.startsWith("quitar:")){
+      const a = parseArgs(line.slice(7));
+      const k = a[0].trim();
+      if(Array.isArray(v[k])){ const i = v[k].indexOf(this.eval_expr(a[1])); if(i>=0) v[k].splice(i,1); }
+      return;
+    }
+    if(line.startsWith("obtener:")){
+      const a = parseArgs(line.slice(8));
+      const obj = v[a[1].trim()];
+      const key = this.eval_expr(a[2]);
+      try{
+        if(Array.isArray(obj)) v[a[0].trim()] = obj[parseInt(key)];
+        else if(obj && typeof obj === "object") v[a[0].trim()] = obj[key];
+        else if(obj instanceof EZObject) v[a[0].trim()] = obj.fields[String(key)];
+      }catch(e){}
+      return;
+    }
+    if(line.startsWith("ordenar:")){ const a = parseArgs(line.slice(8)); const arr = this.eval_expr(a[1]); if(Array.isArray(arr)) v[a[0].trim()] = [...arr].sort((x,y)=>x-y); return; }
+    if(line.startsWith("rango:")){
+      const a = parseArgs(line.slice(6));
+      const lo = parseInt(this.eval_expr(a[1]))||0;
+      const hi = parseInt(this.eval_expr(a[2]))||0;
+      const out = []; for(let k=lo;k<hi;k++) out.push(k);
+      v[a[0].trim()] = out; return;
+    }
+    if(line.startsWith("promedio_lista:")){ const a = parseArgs(line.slice(15)); const arr = this.eval_expr(a[1]); v[a[0].trim()] = Array.isArray(arr)&&arr.length ? arr.reduce((s,x)=>s+parseFloat(x),0)/arr.length : 0; return; }
+    if(line.startsWith("suma_lista:")){ const a = parseArgs(line.slice(11)); const arr = this.eval_expr(a[1]); v[a[0].trim()] = Array.isArray(arr) ? arr.reduce((s,x)=>s+parseFloat(x),0) : 0; return; }
+    if(line.startsWith("max_lista:")){ const a = parseArgs(line.slice(10)); const arr = this.eval_expr(a[1]); v[a[0].trim()] = Array.isArray(arr)&&arr.length ? Math.max(...arr.map(Number)) : 0; return; }
+    if(line.startsWith("min_lista:")){ const a = parseArgs(line.slice(10)); const arr = this.eval_expr(a[1]); v[a[0].trim()] = Array.isArray(arr)&&arr.length ? Math.min(...arr.map(Number)) : 0; return; }
+    if(line.startsWith("filtro_pares:")){ const a = parseArgs(line.slice(13)); const arr = this.eval_expr(a[1]); v[a[0].trim()] = Array.isArray(arr) ? arr.filter(x=>Number(x)%2===0) : []; return; }
+    if(line.startsWith("filtro_impares:")){ const a = parseArgs(line.slice(15)); const arr = this.eval_expr(a[1]); v[a[0].trim()] = Array.isArray(arr) ? arr.filter(x=>Number(x)%2!==0) : []; return; }
+    if(line.startsWith("mapear_doble:")){ const a = parseArgs(line.slice(13)); const arr = this.eval_expr(a[1]); v[a[0].trim()] = Array.isArray(arr) ? arr.map(x=>Number(x)*2) : []; return; }
+    if(line.startsWith("indice_lista:")){ const a = parseArgs(line.slice(13)); const arr = this.eval_expr(a[1]); const val = this.eval_expr(a[2]); v[a[0].trim()] = Array.isArray(arr) ? arr.indexOf(val) : -1; return; }
+    if(line.startsWith("contar_valor:")){ const a = parseArgs(line.slice(13)); const arr = this.eval_expr(a[1]); const val = this.eval_expr(a[2]); v[a[0].trim()] = Array.isArray(arr) ? arr.filter(x=>x===val).length : 0; return; }
+    if(line.startsWith("aplanar:")){ const a = parseArgs(line.slice(8)); const arr = this.eval_expr(a[1]); v[a[0].trim()] = Array.isArray(arr) ? arr.flat() : []; return; }
+    if(line.startsWith("unico:")){ const a = parseArgs(line.slice(6)); const arr = this.eval_expr(a[1]); v[a[0].trim()] = Array.isArray(arr) ? [...new Set(arr)] : []; return; }
+    if(line.startsWith("zip_lista:")){
+      const a = parseArgs(line.slice(10));
+      const A = this.eval_expr(a[1]), B = this.eval_expr(a[2]);
+      if(Array.isArray(A) && Array.isArray(B)) v[a[0].trim()] = A.map((x,i)=>[x,B[i]]);
+      return;
+    }
+    if(line.startsWith("eliminar_duplicados:")){ const a = parseArgs(line.slice(20)); const arr = this.eval_expr(a[1]); v[a[0].trim()] = Array.isArray(arr) ? [...new Set(arr)] : []; return; }
+    if(line.startsWith("contiene:")){
+      const a = parseArgs(line.slice(9));
+      const arr = this.eval_expr(a[1]);
+      const x = this.eval_expr(a[2]);
+      v[a[0].trim()] = Array.isArray(arr) ? arr.includes(x) : String(arr).includes(String(x));
+      return;
+    }
+    if(line.startsWith("unir_lista:")){
+      const a = parseArgs(line.slice(11));
+      const sep = String(this.eval_expr(a[1]));
+      const arr = this.eval_expr(a[2]);
+      v[a[0].trim()] = Array.isArray(arr) ? arr.join(sep) : ""; return;
+    }
+    if(line.startsWith("contar:")){ const a = parseArgs(line.slice(7)); this.log(`🔢 Contar: ${String(this.eval_expr(a[0])).length}`, "info"); return; }
+
+    /* DIBUJO */
+    if(line.startsWith("color:")){ const a = parseArgs(line.slice(6)); this.current_draw_color = this.get_color(this.eval_expr(a[0])); return; }
+    if(line.startsWith("color_canvas:")){ const a = parseArgs(line.slice(13)); this.current_draw_color = this.get_color(this.eval_expr(a[0])); return; }
+    if(line.startsWith("grosor_linea:")){ const a = parseArgs(line.slice(13)); this.current_line_width = parseInt(this.eval_expr(a[0]))||1; return; }
+    if(line.startsWith("linea:")){
+      const a = parseArgs(line.slice(6));
+      const [x1,y1,x2,y2] = a.slice(0,4).map(x=>parseFloat(this.eval_expr(x))||0);
+      const c = a[4] ? this.get_color(this.eval_expr(a[4])) : this.current_draw_color;
+      const w = this.current_line_width;
+      app.drawCommands.push(ctx => { ctx.strokeStyle=c; ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); });
+      return;
+    }
+    if(line.startsWith("rectangulo:")){
+      const a = parseArgs(line.slice(11));
+      const [x,y,w,h] = a.slice(0,4).map(x=>parseFloat(this.eval_expr(x))||0);
+      const c = a[4] ? this.get_color(this.eval_expr(a[4])) : this.current_draw_color;
+      app.drawCommands.push(ctx => { ctx.fillStyle=c; ctx.fillRect(x,y,w,h); });
+      return;
+    }
+    if(line.startsWith("circulo:")){
+      const a = parseArgs(line.slice(8));
+      const [x,y,r] = a.slice(0,3).map(x=>parseFloat(this.eval_expr(x))||0);
+      const c = a[3] ? this.get_color(this.eval_expr(a[3])) : this.current_draw_color;
+      app.drawCommands.push(ctx => { ctx.fillStyle=c; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); });
+      return;
+    }
+    if(line.startsWith("ovalo:")){
+      const a = parseArgs(line.slice(6));
+      const [x,y,w,h] = a.slice(0,4).map(x=>parseFloat(this.eval_expr(x))||0);
+      const c = a[4] ? this.get_color(this.eval_expr(a[4])) : this.current_draw_color;
+      app.drawCommands.push(ctx => { ctx.fillStyle=c; ctx.beginPath(); ctx.ellipse(x+w/2,y+h/2,w/2,h/2,0,0,Math.PI*2); ctx.fill(); });
+      return;
+    }
+    if(line.startsWith("triangulo:")){
+      const a = parseArgs(line.slice(10));
+      const p = a.slice(0,6).map(x=>parseFloat(this.eval_expr(x))||0);
+      const c = a[6] ? this.get_color(this.eval_expr(a[6])) : this.current_draw_color;
+      app.drawCommands.push(ctx => {
+        ctx.fillStyle=c; ctx.beginPath();
+        ctx.moveTo(p[0],p[1]); ctx.lineTo(p[2],p[3]); ctx.lineTo(p[4],p[5]);
+        ctx.closePath(); ctx.fill();
+      });
+      return;
+    }
+    if(line.startsWith("texto_canvas:")){
+      const a = parseArgs(line.slice(13));
+      const x = parseFloat(this.eval_expr(a[0]))||0;
+      const y = parseFloat(this.eval_expr(a[1]))||0;
+      const txt = String(this.eval_expr(a[2]));
+      const c = a[3] ? this.get_color(this.eval_expr(a[3])) : this.current_draw_color;
+      app.drawCommands.push(ctx => { ctx.fillStyle=c; ctx.font="bold 14px "+MODES[app.state.mode].font_family; ctx.fillText(txt,x,y); });
+      return;
+    }
+    if(line === "borrar_canvas"){ app.clearCanvas(); return; }
+    if(line.startsWith("cuadricula:")){
+      const a = parseArgs(line.slice(11));
+      const step = parseInt(this.eval_expr(a[0]))||40;
+      const gc = quantize("#34495e", app.state.mode, app.state.palette);
+      const W = app.canvasEl.clientWidth, H = app.canvasEl.clientHeight;
+      app.drawCommands.push(ctx => {
+        ctx.strokeStyle = gc; ctx.lineWidth = 1; ctx.setLineDash([2,3]);
+        for(let x=0;x<W;x+=step){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+        for(let y=0;y<H;y+=step){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+        ctx.setLineDash([]);
+      });
+      return;
+    }
+    if(line.startsWith("rgb:")){
+      const a = parseArgs(line.slice(4));
+      const r = (parseInt(this.eval_expr(a[0]))||0)%256;
+      const g = (parseInt(this.eval_expr(a[1]))||0)%256;
+      const b = (parseInt(this.eval_expr(a[2]))||0)%256;
+      this.current_draw_color = quantize(rgbToHex(r,g,b), app.state.mode, app.state.palette); return;
+    }
+    if(line.startsWith("pixel:")){
+      const a = parseArgs(line.slice(6));
+      const x = parseFloat(this.eval_expr(a[0]))||0;
+      const y = parseFloat(this.eval_expr(a[1]))||0;
+      const c = a[2] ? this.get_color(this.eval_expr(a[2])) : this.current_draw_color;
+      const s = MODES[app.state.mode].pixel_scale;
+      app.drawCommands.push(ctx => { ctx.fillStyle=c; ctx.fillRect(x,y,s,s); });
+      return;
+    }
+
+    /* MODOS GRÁFICOS */
+    if(line.startsWith("modo_grafico:")){
+      const a = parseArgs(line.slice(13));
+      let m = String(this.eval_expr(a[0])).trim().toLowerCase();
+      if(["8bit","8-bit","8"].includes(m)) m = "8bit";
+      else if(["16bit","16-bit","16"].includes(m)) m = "16bit";
+      else m = "normal";
+      app.apply_video_mode(m, true); return;
+    }
+    if(line.startsWith("paleta:")){
+      const a = parseArgs(line.slice(7));
+      const p = String(this.eval_expr(a[0])).trim().toLowerCase();
+      if(PALETTES[p]) app.apply_palette(p, true); return;
+    }
+    if(line.startsWith("idioma:")){
+      const a = parseArgs(line.slice(7));
+      const l = String(this.eval_expr(a[0])).trim().toLowerCase().slice(0,2);
+      if(I18N.LANGS.includes(l)) app.change_language(l, true); return;
+    }
+
+    /* FECHA/HORA */
+    if(line === "fecha" || line === "hora" || line === "hora_actual" || line === "fecha_hora"){
+      const d = new Date();
+      if(line === "fecha") this.log(`📅 ${d.toISOString().slice(0,10)}`, "info");
+      else if(line === "hora" || line === "hora_actual") this.log(`⏰ ${d.toTimeString().slice(0,8)}`, "info");
+      else this.log(`📅 ${d.toLocaleString()}`, "info");
+      return;
+    }
+    const dG = {"año":d=>d.getFullYear(),mes:d=>d.getMonth()+1,dia:d=>d.getDate(),hora_num:d=>d.getHours(),minuto:d=>d.getMinutes(),segundo:d=>d.getSeconds(),timestamp:d=>d.getTime()};
+    for(const k in dG){
+      if(line.startsWith(k + ":")){
+        const a = parseArgs(line.slice(k.length+1));
+        v[a[0].trim()] = dG[k](new Date()); return;
+      }
+    }
+    if(line.startsWith("formatear_fecha:")){
+      const a = parseArgs(line.slice(16));
+      const fmt = String(this.eval_expr(a[1]));
+      const d = new Date();
+      const p2 = n => String(n).padStart(2,"0");
+      v[a[0].trim()] = fmt.replace(/%Y/g, d.getFullYear()).replace(/%m/g, p2(d.getMonth()+1))
+        .replace(/%d/g, p2(d.getDate())).replace(/%H/g, p2(d.getHours()))
+        .replace(/%M/g, p2(d.getMinutes())).replace(/%S/g, p2(d.getSeconds()));
+      return;
+    }
+    if(line.startsWith("esperar:")){
+      const a = parseArgs(line.slice(8));
+      const s = parseFloat(this.eval_expr(a[0]))||0;
+      await new Promise(r => setTimeout(r, s*1000)); return;
+    }
+
+    /* DIÁLOGOS/SISTEMA */
+    if(line.startsWith("alerta:")){ const a = parseArgs(line.slice(7)); window.alert(String(this.eval_expr(a[0]))); return; }
+    if(line.startsWith("confirmar:")){ const a = parseArgs(line.slice(10)); v[a[0].trim()] = window.confirm(String(this.eval_expr(a[1]))); return; }
+    if(line.startsWith("abrir_url:")){ const a = parseArgs(line.slice(10)); window.open(String(this.eval_expr(a[0])),"_blank"); return; }
+    if(line.startsWith("copiar:")){ const a = parseArgs(line.slice(7)); try{ navigator.clipboard.writeText(String(this.eval_expr(a[0]))); }catch(e){} return; }
+    if(line.startsWith("notificacion:")){ const a = parseArgs(line.slice(13)); this.log_info(`🔔 ${this.eval_expr(a[0])}: ${a[1]?this.eval_expr(a[1]):""}`); return; }
+    if(line === "pitido"){ app.beep(440, 80); return; }
+    if(line.startsWith("beep:")){ const a = parseArgs(line.slice(5)); app.beep(parseInt(this.eval_expr(a[0]))||440, parseInt(this.eval_expr(a[1]))||80); return; }
+    if(line.startsWith("nota:")){ const a = parseArgs(line.slice(5)); app.beep(parseInt(this.eval_expr(a[0]))||440, parseInt(this.eval_expr(a[1]))||120); return; }
+    if(line.startsWith("musica:")){ const a = parseArgs(line.slice(7)); app.playMusic(String(this.eval_expr(a[0]))); return; }
+
+    if(line.startsWith("sistema:")){ const a = parseArgs(line.slice(8)); v[a[0].trim()] = "Web/Browser"; return; }
+    if(line.startsWith("arquitectura:")){ const a = parseArgs(line.slice(13)); v[a[0].trim()] = navigator.platform; return; }
+    if(line.startsWith("usuario:")){ const a = parseArgs(line.slice(8)); v[a[0].trim()] = "web_user"; return; }
+    if(line.startsWith("cwd:")){ const a = parseArgs(line.slice(4)); v[a[0].trim()] = "/workspace"; return; }
+    if(line.startsWith("variable_entorno:")){ const a = parseArgs(line.slice(17)); v[a[0].trim()] = ""; return; }
+    if(line.startsWith("proceso_id:")){ const a = parseArgs(line.slice(11)); v[a[0].trim()] = 0; return; }
+    if(line.startsWith("ejecutar_shell:") || line.startsWith("ejecutar_cmd:")){
+      const base = line.startsWith("ejecutar_shell:") ? 15 : 13;
+      const a = parseArgs(line.slice(base));
+      v[a[0].trim()] = "[shell no disponible en el navegador]";
+      this.log_warn("Shell no disponible en el navegador"); return;
+    }
+
+    /* LOGGING */
+    if(line.startsWith("log_info:")){ const a = parseArgs(line.slice(9)); this.log_info(this.eval_expr(a[0])); return; }
+    if(line.startsWith("log_warn:")){ const a = parseArgs(line.slice(9)); this.log_warn(this.eval_expr(a[0])); return; }
+    if(line.startsWith("log_error:")){ const a = parseArgs(line.slice(10)); this.log_error(this.eval_expr(a[0])); return; }
+    if(line.startsWith("logro:")){
+      const a = parseArgs(line.slice(6));
+      const ach = String(this.eval_expr(a[0]));
+      if(!this.achievements.includes(ach)){ this.achievements.push(ach); this.log(`🏆 ${ach}`, "ach"); }
+      return;
+    }
+
+    /* ARCHIVOS (VFS) */
+    if(line.startsWith("crear_archivo:")){ const a = parseArgs(line.slice(14)); this.vfs[String(this.eval_expr(a[0]))] = String(this.eval_expr(a[1])); this.log_success(`OK: ${this.eval_expr(a[0])}`); return; }
+    if(line.startsWith("leer_archivo:")){ const a = parseArgs(line.slice(13)); v[a[0].trim()] = this.vfs[String(this.eval_expr(a[1]))] || ""; return; }
+    if(line.startsWith("existe_archivo:")){ const a = parseArgs(line.slice(15)); v[a[0].trim()] = String(this.eval_expr(a[1])) in this.vfs; return; }
+    if(line.startsWith("eliminar_archivo:")){ const a = parseArgs(line.slice(17)); delete this.vfs[String(this.eval_expr(a[0]))]; return; }
+    if(line.startsWith("listar_archivos:")){ const a = parseArgs(line.slice(16)); v[a[0].trim()] = Object.keys(this.vfs); return; }
+    if(line.startsWith("copiar_archivo:")){ const a = parseArgs(line.slice(15)); const s=String(this.eval_expr(a[0])); const d=String(this.eval_expr(a[1])); if(s in this.vfs) this.vfs[d]=this.vfs[s]; return; }
+    if(line.startsWith("mover_archivo:")){ const a = parseArgs(line.slice(14)); const s=String(this.eval_expr(a[0])); const d=String(this.eval_expr(a[1])); if(s in this.vfs){ this.vfs[d]=this.vfs[s]; delete this.vfs[s]; } return; }
+    if(line.startsWith("renombrar_archivo:")){ const a = parseArgs(line.slice(18)); const s=String(this.eval_expr(a[0])); const d=String(this.eval_expr(a[1])); if(s in this.vfs){ this.vfs[d]=this.vfs[s]; delete this.vfs[s]; } return; }
+    if(line.startsWith("tamano_archivo:")){ const a = parseArgs(line.slice(15)); v[a[0].trim()] = (this.vfs[String(this.eval_expr(a[1]))]||"").length; return; }
+    if(line.startsWith("crear_carpeta:") || line.startsWith("eliminar_carpeta:")) return;
+    if(line.startsWith("leer_lineas:")){ const a = parseArgs(line.slice(12)); v[a[0].trim()] = (this.vfs[String(this.eval_expr(a[1]))]||"").split("\n"); return; }
+    if(line.startsWith("escribir_lineas:")){ const a = parseArgs(line.slice(16)); const arr = this.eval_expr(a[1]); this.vfs[String(this.eval_expr(a[0]))] = Array.isArray(arr)?arr.join("\n"):""; return; }
+    if(line.startsWith("agregar_archivo:")){ const a = parseArgs(line.slice(16)); const p = String(this.eval_expr(a[0])); this.vfs[p] = (this.vfs[p]||"") + String(this.eval_expr(a[1])); return; }
+    if(line.startsWith("listar_extension:")){ const a = parseArgs(line.slice(16)); const ext = String(this.eval_expr(a[2])); v[a[0].trim()] = Object.keys(this.vfs).filter(f => f.endsWith(ext)); return; }
+    if(line.startsWith("ruta_absoluta:")){ const a = parseArgs(line.slice(14)); v[a[0].trim()] = "/" + String(this.eval_expr(a[1])); return; }
+    if(line.startsWith("ruta_unir:")){ const a = parseArgs(line.slice(10)); v[a[0].trim()] = String(this.eval_expr(a[1])).replace(/\/+$/,"") + "/" + String(this.eval_expr(a[2])).replace(/^\/+/,""); return; }
+    if(line.startsWith("nombre_archivo:")){ const a = parseArgs(line.slice(15)); v[a[0].trim()] = String(this.eval_expr(a[1])).split("/").pop(); return; }
+    if(line.startsWith("carpeta_padre:")){ const a = parseArgs(line.slice(14)); const parts = String(this.eval_expr(a[1])).split("/"); parts.pop(); v[a[0].trim()] = parts.join("/") || "/"; return; }
+    if(line.startsWith("extension_archivo:")){ const a = parseArgs(line.slice(18)); const s = String(this.eval_expr(a[1])); const i = s.lastIndexOf("."); v[a[0].trim()] = i>=0 ? s.slice(i) : ""; return; }
+
+    /* JSON */
+    if(line.startsWith("json_dumps:")){ const a = parseArgs(line.slice(11)); try{ v[a[0].trim()] = JSON.stringify(this.eval_expr(a[1])); }catch(e){} return; }
+    if(line.startsWith("json_loads:")){ const a = parseArgs(line.slice(11)); try{ v[a[0].trim()] = JSON.parse(String(this.eval_expr(a[1]))); }catch(e){} return; }
+    if(line.startsWith("json_guardar:")){ const a = parseArgs(line.slice(13)); try{ this.vfs[String(this.eval_expr(a[0]))] = JSON.stringify(this.eval_expr(a[1])); }catch(e){} return; }
+    if(line.startsWith("json_cargar:")){ const a = parseArgs(line.slice(12)); try{ v[a[0].trim()] = JSON.parse(this.vfs[String(this.eval_expr(a[1]))]||"null"); }catch(e){} return; }
+    if(line.startsWith("json_valido:")){ const a = parseArgs(line.slice(12)); try{ JSON.parse(String(this.eval_expr(a[1]))); v[a[0].trim()] = true; }catch(e){ v[a[0].trim()] = false; } return; }
+    if(line.startsWith("json_obtener:")){
+      const a = parseArgs(line.slice(13));
+      try{
+        let obj = this.eval_expr(a[1]);
+        if(typeof obj === "string") obj = JSON.parse(obj);
+        for(const k of String(this.eval_expr(a[2])).split(".")) obj = obj[k];
+        v[a[0].trim()] = obj;
+      }catch(e){}
+      return;
+    }
+
+    /* HASH / ENCODE — usamos SubtleCrypto de forma síncrona aproximada */
+    if(line.startsWith("hash_md5:") || line.startsWith("hash_sha1:") || line.startsWith("hash_sha256:")){
+      const base = line.startsWith("hash_md5:") ? 9 : (line.startsWith("hash_sha1:") ? 10 : 12);
+      const algo = line.startsWith("hash_md5:") ? "md5" : (line.startsWith("hash_sha1:") ? "sha1" : "sha256");
+      const a = parseArgs(line.slice(base));
+      const s = String(this.eval_expr(a[1]));
+      let h = 0; for(let i=0;i<s.length;i++) h = ((h<<5)-h) + s.charCodeAt(i); h |= 0;
+      v[a[0].trim()] = algo + "_" + (h>>>0).toString(16).padStart(8,"0");
+      return;
+    }
+    if(line.startsWith("base64_cod:")){ const a = parseArgs(line.slice(11)); v[a[0].trim()] = btoa(unescape(encodeURIComponent(String(this.eval_expr(a[1]))))); return; }
+    if(line.startsWith("base64_dec:")){ const a = parseArgs(line.slice(11)); try{ v[a[0].trim()] = decodeURIComponent(escape(atob(String(this.eval_expr(a[1]))))); }catch(e){ v[a[0].trim()] = ""; } return; }
+    if(line.startsWith("uuid:")){ const a = parseArgs(line.slice(5)); v[a[0].trim()] = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,c=>{ const r = Math.random()*16|0; return (c==="x"?r:(r&0x3|0x8)).toString(16); }); return; }
+
+    /* REGEX */
+    if(line.startsWith("regex_buscar:")){ const a = parseArgs(line.slice(13)); try{ v[a[0].trim()] = String(this.eval_expr(a[1])).match(new RegExp(String(this.eval_expr(a[2])),"g"))||[]; }catch(e){ v[a[0].trim()] = []; } return; }
+    if(line.startsWith("regex_reemplazar:")){ const a = parseArgs(line.slice(16)); try{ v[a[0].trim()] = String(this.eval_expr(a[3])).replace(new RegExp(String(this.eval_expr(a[1])),"g"), String(this.eval_expr(a[2]))); }catch(e){} return; }
+    if(line.startsWith("regex_match:")){ const a = parseArgs(line.slice(12)); try{ v[a[0].trim()] = new RegExp(String(this.eval_expr(a[1]))).test(String(this.eval_expr(a[2]))); }catch(e){ v[a[0].trim()] = false; } return; }
+    if(line.startsWith("regex_split:")){ const a = parseArgs(line.slice(12)); try{ v[a[0].trim()] = String(this.eval_expr(a[2])).split(new RegExp(String(this.eval_expr(a[1])))); }catch(e){ v[a[0].trim()] = []; } return; }
+    if(line.startsWith("regex_grupos:")){ const a = parseArgs(line.slice(13)); try{ const m = String(this.eval_expr(a[2])).match(new RegExp(String(this.eval_expr(a[1])))); v[a[0].trim()] = m ? Array.from(m).slice(1) : []; }catch(e){ v[a[0].trim()] = []; } return; }
+    if(line.startsWith("regex_escapar:")){ const a = parseArgs(line.slice(14)); v[a[0].trim()] = String(this.eval_expr(a[1])).replace(/[.*+?^${}()|[\]\\]/g,"\\$&"); return; }
+
+    /* CSV */
+    if(line.startsWith("csv_parsear:")){ const a = parseArgs(line.slice(12)); v[a[0].trim()] = String(this.eval_expr(a[1])).split("\n").map(r=>r.split(",")); return; }
+    if(line.startsWith("csv_generar:")){ const a = parseArgs(line.slice(12)); const arr = this.eval_expr(a[1]); v[a[0].trim()] = Array.isArray(arr)?arr.map(r=>Array.isArray(r)?r.join(","):r).join("\n"):""; return; }
+
+    /* RED */
+    if(line.startsWith("http_get:")||line.startsWith("http_post:")||line.startsWith("http_put:")||line.startsWith("http_delete:")){
+      const base = line.startsWith("http_get:")?9: line.startsWith("http_post:")?10: line.startsWith("http_put:")?9: 12;
+      const a = parseArgs(line.slice(base));
+      this.log_warn("HTTP no disponible directamente (CORS).");
+      v[a[0].trim()] = ""; return;
+    }
+    if(line.startsWith("url_codificar:")){ const a = parseArgs(line.slice(14)); v[a[0].trim()] = encodeURIComponent(String(this.eval_expr(a[1]))); return; }
+    if(line.startsWith("url_decodificar:")){ const a = parseArgs(line.slice(16)); v[a[0].trim()] = decodeURIComponent(String(this.eval_expr(a[1]))); return; }
+    if(line.startsWith("resolver_dns:")){ const a = parseArgs(line.slice(13)); v[a[0].trim()] = ""; this.log_warn("DNS no disponible en el navegador"); return; }
+
+    /* FUNCIONES */
+    if(line.startsWith("llamar:")){
+      const a = parseArgs(line.slice(7));
+      const fname = a[0].replace(/^["']|["']$/g,"").trim();
+      await this._call_function(fname, a.slice(1));
+      return;
+    }
+
+    /* CLASES */
+    if(line.startsWith("nuevo:")){
+      const a = parseArgs(line.slice(6));
+      v[a[0].trim()] = this._instantiate(a[1].replace(/^["']|["']$/g,"").trim());
+      return;
+    }
+    if(line.startsWith("llamar_metodo:")){
+      const a = parseArgs(line.slice(14));
+      const obj = v[a[0].trim()];
+      if(obj instanceof EZObject) await this._invoke_method(obj, a[1].replace(/^["']|["']$/g,"").trim(), a.slice(2));
+      return;
+    }
+
+    /* EVENTOS / TIMERS */
+    if(line.startsWith("al:")){
+      const a = parseArgs(line.slice(3));
+      const ev = a[0].replace(/^["']|["']$/g,"").trim();
+      const fn = a[1].replace(/^["']|["']$/g,"").trim();
+      if(!this.events[ev]) this.events[ev] = [];
+      this.events[ev].push(fn); return;
+    }
+    if(line.startsWith("emitir:")){
+      const a = parseArgs(line.slice(7));
+      const ev = a[0].replace(/^["']|["']$/g,"").trim();
+      for(const h of (this.events[ev] || [])) await this._call_function(h, []);
+      return;
+    }
+    if(line.startsWith("cada:")){
+      const a = parseArgs(line.slice(5));
+      const id = a[0].replace(/^["']|["']$/g,"").trim();
+      const ms = parseInt(this.eval_expr(a[1]))||1000;
+      const fn = a[2].replace(/^["']|["']$/g,"").trim();
+      this.timers[id] = { ms, fn };
+      return;
+    }
+    if(line.startsWith("cancelar_timer:")){ const a = parseArgs(line.slice(15)); delete this.timers[a[0].replace(/^["']|["']$/g,"").trim()]; return; }
+    if(line.startsWith("tecla_al:")){
+      const a = parseArgs(line.slice(9));
+      const k = String(this.eval_expr(a[0])).replace(/^["']|["']$/g,"");
+      const fn = a[2].replace(/^["']|["']$/g,"").trim();
+      app.bindCanvasKey(k, () => this._call_function(fn, []));
+      return;
+    }
+    if(line.startsWith("raton_al:")){
+      const a = parseArgs(line.slice(9));
+      const ev = String(this.eval_expr(a[0])).replace(/^["']|["']$/g,"");
+      const fn = a[1].replace(/^["']|["']$/g,"").trim();
+      app.bindCanvasMouse(ev, () => this._call_function(fn, []));
+      return;
+    }
+
+    /* SPRITES */
+    if(line.startsWith("sprite:")){
+      const a = parseArgs(line.slice(7));
+      const name = a[0].replace(/^["']|["']$/g,"").trim();
+      const x = parseFloat(this.eval_expr(a[1]))||0;
+      const y = parseFloat(this.eval_expr(a[2]))||0;
+      const w = parseFloat(this.eval_expr(a[3]))||8;
+      const h = parseFloat(this.eval_expr(a[4]))||8;
+      const c = a[5] ? this.get_color(this.eval_expr(a[5])) : "#ffffff";
+      const sp = new Sprite(name,x,y,w,h,c);
+      this.sprites[name] = sp;
+      app.drawCommands.push(ctx => { ctx.fillStyle=c; ctx.fillRect(x,y,w,h); });
+      return;
+    }
+    if(line.startsWith("mover_sprite:")){
+      const a = parseArgs(line.slice(13));
+      const name = a[0].replace(/^["']|["']$/g,"").trim();
+      const dx = parseFloat(this.eval_expr(a[1]))||0;
+      const dy = parseFloat(this.eval_expr(a[2]))||0;
+      const s = this.sprites[name];
+      if(s){ s.x += dx; s.y += dy;
+        app.drawCommands.push(ctx => { ctx.fillStyle=s.color; ctx.fillRect(s.x,s.y,s.w,s.h); });
+      }
+      return;
+    }
+    if(line.startsWith("colisiona:")){
+      const a = parseArgs(line.slice(10));
+      const s1 = this.sprites[a[1].replace(/^["']|["']$/g,"").trim()];
+      const s2 = this.sprites[a[2].replace(/^["']|["']$/g,"").trim()];
+      v[a[0].trim()] = Boolean(s1 && s2 && s1.intersects(s2));
+      return;
+    }
+
+    /* TESTS */
+    if(line.startsWith("afirmar_igual:")){
+      const a = parseArgs(line.slice(14));
+      const x = this.eval_expr(a[0]), y = this.eval_expr(a[1]);
+      if(String(x) !== String(y)) throw new Error(`assert_equal failed: ${x} != ${y}`);
+      return;
+    }
+    if(line.startsWith("afirmar_verdad:")){ const a = parseArgs(line.slice(15)); if(!this.eval_expr(a[0])) throw new Error("assert_true failed"); return; }
+    if(line.startsWith("afirmar_falso:")){ const a = parseArgs(line.slice(14)); if(this.eval_expr(a[0])) throw new Error("assert_false failed"); return; }
+
+    /* DETENER / IMPORTAR */
+    if(line === "detener"){ this.should_stop = true; return; }
+    if(line.startsWith("importar:")) return;
+
+    /* NO RECONOCIDO */
+    if(line.includes(":") && !line.startsWith("//")){
+      this.log_warn(`Comando no reconocido L${line_num}: ${line}`);
+    }
+  }
+
+  async _call_function(fname, args){
+    if(!this.functions[fname]){ this.log_warn(`Función no definida: ${fname}`); return null; }
+    const spec = this.functions[fname];
+    const saved = { ...this.variables };
+    spec.params.forEach((p,i)=>{ if(i<args.length) this.variables[p] = this.eval_expr(args[i]); });
+    this.call_stack.push(fname);
+    let result = null;
+    try{ await this.run_block(spec.body, 0, spec.body.length); }
+    catch(e){
+      if(e instanceof ReturnSignal) result = e.value;
+      else if(e instanceof BreakSignal || e instanceof ContinueSignal){}
+      else throw e;
+    }finally{
+      this.call_stack.pop();
+      this.variables = saved;
+    }
+    return result;
+  }
+
+  _instantiate(clsName){
+    if(!this.classes[clsName]){ this.log_warn(`Clase no definida: ${clsName}`); return new EZObject(clsName); }
+    const spec = this.classes[clsName];
+    const obj = new EZObject(clsName);
+    if(spec.parent && this.classes[spec.parent]){
+      const parent = this._instantiate(spec.parent);
+      Object.assign(obj.fields, parent.fields);
+      Object.assign(obj.methods, parent.methods);
+    }
+    Object.assign(obj.fields, spec.fields);
+    Object.assign(obj.methods, spec.methods);
+    if("constructor" in obj.methods) this._invoke_method(obj, "constructor", []).catch(()=>{});
+    return obj;
+  }
+
+  async _invoke_method(obj, method, args){
+    if(!obj.methods[method]){ this.log_warn(`Método no existe: ${method}`); return null; }
+    const spec = obj.methods[method];
+    const saved = { ...this.variables };
+    this.variables["self"] = obj;
+    spec.params.forEach((p,i)=>{ if(i<args.length) this.variables[p] = this.eval_expr(args[i]); });
+    this.call_stack.push(`${obj.cls_name}.${method}`);
+    let result = null;
+    try{ await this.run_block(spec.body, 0, spec.body.length); }
+    catch(e){ if(e instanceof ReturnSignal) result = e.value; }
+    finally{
+      this.call_stack.pop();
+      this.variables = saved;
+    }
+    return result;
+  }
+}
+
+/* =========================================================
+   6) Documento (pestaña)
+   ========================================================= */
+class Document{
+  constructor(title="Sin título", untitled=true){
+    this.title = title;
+    this.untitled = untitled;
+    this.content = "";
+    this.path = null;
+    this.modified = false;
+    this.bookmarks = new Set();
+  }
+}
+
+/* =========================================================
+   7) IDE
+   ========================================================= */
+class IDE{
+  constructor(){
+    this.i18n = new I18n(DEFAULT_LANG);
+    this.state = {
+      lang: DEFAULT_LANG,
+      mode: DEFAULT_MODE,
+      palette: DEFAULT_PALETTE,
+      fontFamily: MODES.normal.font_family,
+      fontSize: MODES.normal.font_size,
+      tabSize: 4,
+      wordWrap: false,
+      showTimestamps: false,
+      theme: "dark",
+    };
+    this.documents = [];
+    this.activeDocIdx = 0;
+    this.drawCommands = [];
+    this.consoleEl = document.getElementById("console");
+    this.canvasEl = document.getElementById("canvas");
+    this.ctx = this.canvasEl.getContext("2d");
+    this.interpreter = new Interpreter(this.i18n);
+    this.audioCtx = null;
+    this.executionRunning = false;
+    this.history = [];
+    this.sessionStats = { runs: 0, time: 0, stmts: 0 };
+    this.snippets = {
+      "Bucle": "bucle:(10)\n  \nfin_bucle",
+      "Condicional": "si:(condicion)\n  \nsino:\n  \nfin_si",
+      "Función": "funcion:(nombre, a)\n  retornar:(a)\nfin_funcion",
+      "Clase": "clase:(Nombre)\n  funcion:(constructor)\n    propiedad:(x, 0)\n  fin_funcion\nfin_clase",
+      "Test": 'test:("mi test")\n  afirmar_verdad:(1)\nfin_test',
+      "Sprite": 'sprite:(jugador, 50, 50, 16, 16, "rojo")',
+      "Timer": "cada:(t1, 1000, mi_funcion)",
+      "Evento": 'al:("click", mi_handler)',
+    };
+    this.canvasKeyBindings = {};
+    this.canvasMouseBindings = {};
+    this.macroEvents = [];
+    this.macroRecording = false;
+  }
+
+  t(k){ return this.i18n.t(k); }
+
+  start(){
+    this._loadConfig();
+    this.applyMode(this.state.mode);
+    this.buildMenubar();
+    this.buildToolbar();
+    this.bindEditor();
+    this.bindShortcuts();
+    this.bindCmdPalette();
+    this.resizeCanvas();
+    this.newDocument(undefined, false);
+    this.loadDemoIntoEditor();
+    this.buildSidebar();
+    this.updateStatus();
+    window.addEventListener("resize", ()=>{ this.resizeCanvas(); this.redrawCanvas(); });
+    this._scheduleAutosave();
+    this.log("EasyScript Studio v5.0.0 — Web Edition", "success");
+    this.log("Pulsa F5 o el botón ▶ Ejecutar para empezar.", "dim");
+  }
+
+  /* ---------- menú ---------- */
+  buildMenubar(){
+    const t = this.t.bind(this);
+    const langs = { es:"🇪🇸 Español", en:"🇬🇧 English", pt:"🇵🇹 Português" };
+    const modes = { normal:"Normal 24-bit", "8bit":"8-bit retro", "16bit":"16-bit retro" };
+    const pals = { nes:"NES", gameboy:"Game Boy", cga:"CGA", snes:"SNES", vga:"VGA", sinclair:"Sinclair" };
+    const menus = [
+      { label:t("file"), items:[
+        { label:t("new"), acc:"Ctrl+N", fn:()=>this.newDocument() },
+        { label:t("new_tab"), acc:"Ctrl+T", fn:()=>this.newDocument() },
+        { label:t("open"), acc:"Ctrl+O", fn:()=>this.openFile() },
+        { label:t("save"), acc:"Ctrl+S", fn:()=>this.saveFile() },
+        { label:t("save_as"), acc:"Ctrl+Shift+S", fn:()=>this.saveFileAs() },
+        { sep:true },
+        { label:t("close_tab"), acc:"Ctrl+W", fn:()=>this.closeTab() },
+        { sep:true },
+        { label:t("console_save"), fn:()=>this.saveConsole() },
+        { label:t("canvas_save"), fn:()=>this.saveCanvas() },
+        { sep:true },
+        { label:t("pack"), fn:()=>this.packProject() },
+        { label:t("unpack"), fn:()=>this.unpackProject() },
+        { label:t("export_html"), fn:()=>this.exportHTML() },
+        { sep:true },
+        { label:t("exit"), fn:()=>{ if(confirm("¿Salir?")) location.reload(); } },
+      ]},
+      { label:t("edit"), items:[
+        { label:t("undo"), acc:"Ctrl+Z", fn:()=>document.execCommand("undo") },
+        { label:t("redo"), acc:"Ctrl+Y", fn:()=>document.execCommand("redo") },
+        { sep:true },
+        { label:t("find"), acc:"Ctrl+F", fn:()=>this.findReplace() },
+        { label:t("search_all"), acc:"Ctrl+Shift+F", fn:()=>this.searchAll() },
+        { label:t("goto"), acc:"Ctrl+G", fn:()=>this.gotoLine() },
+        { label:t("dup"), acc:"Ctrl+D", fn:()=>this.duplicateLine() },
+        { label:t("comment"), acc:"Ctrl+/", fn:()=>this.toggleComment() },
+        { label:t("indent"), acc:"Tab", fn:()=>this.indentSel(true) },
+        { label:t("unindent"), acc:"Shift+Tab", fn:()=>this.indentSel(false) },
+        { sep:true },
+        { label:t("format"), acc:"Ctrl+Alt+F", fn:()=>this.formatCode() },
+        { label:t("rename_var"), fn:()=>this.renameVariable() },
+        { label:t("extract_fn"), fn:()=>this.extractFunction() },
+        { sep:true },
+        { label:t("cmd_palette"), acc:"Ctrl+Shift+P", fn:()=>this.openCmdPalette() },
+        { label:t("autocomplete"), acc:"Ctrl+Space", fn:()=>this.autocomplete() },
+        { sep:true },
+        { label:t("inspect"), fn:()=>this.inspectVars() },
+        { label:t("export_vars"), fn:()=>this.exportVars() },
+        { label:t("import_vars"), fn:()=>this.importVars() },
+      ]},
+      { label:t("view"), items:[
+        { label:t("font_up"), acc:"Ctrl++", fn:()=>this.changeFontSize(+1) },
+        { label:t("font_down"), acc:"Ctrl+-", fn:()=>this.changeFontSize(-1) },
+        { label:t("font_reset"), acc:"Ctrl+0", fn:()=>this.resetFontSize() },
+        { label:t("font_pick"), fn:()=>this.changeFontFamily() },
+        { label:t("tab_size"), fn:()=>this.changeTabSize() },
+        { sep:true },
+        { label:t("wrap"), chk:true, on:this.state.wordWrap, fn:()=>this.toggleWrap() },
+        { label:t("timestamps"), chk:true, on:this.state.showTimestamps, fn:()=>this.toggleTimestamps() },
+        { sep:true },
+        { label:t("theme"), fn:()=>this.toggleTheme() },
+        { label:t("fullscreen"), acc:"F11", fn:()=>this.toggleFullscreen() },
+        { label:t("presentation"), fn:()=>this.togglePresentation() },
+        { sep:true },
+        { label:t("bookmarks"), fn:()=>this.listBookmarks() },
+        { label:t("toggle_bm"), acc:"Ctrl+F2", fn:()=>this.toggleBookmark() },
+        { label:t("next_bm"), acc:"F2", fn:()=>this.jumpBookmark(+1) },
+        { label:t("prev_bm"), acc:"Shift+F2", fn:()=>this.jumpBookmark(-1) },
+      ]},
+      { label:t("language"), items: Object.keys(langs).map(code => ({
+        label: langs[code], chk:true, on:this.state.lang===code,
+        fn:()=>this.change_language(code)
+      }))},
+      { label:t("video_mode"), items: Object.keys(modes).map(code => ({
+        label: modes[code], chk:true, on:this.state.mode===code,
+        fn:()=>this.apply_video_mode(code)
+      })).concat([{sep:true}], Object.keys(pals).map(code => ({
+        label: "Paleta " + pals[code], chk:true, on:this.state.palette===code,
+        fn:()=>this.apply_palette(code)
+      })))},
+      { label:t("run"), items:[
+        { label:t("run_all"), acc:"F5", fn:()=>this.runCode() },
+        { label:t("run_sel"), acc:"F6", fn:()=>this.runSelection() },
+        { label:t("run_cursor"), acc:"Ctrl+F5", fn:()=>this.runFromCursor() },
+        { label:t("validate"), acc:"Ctrl+Shift+V", fn:()=>this.validateSyntax() },
+        { sep:true },
+        { label:t("stop"), acc:"Esc", fn:()=>{ this.interpreter.should_stop = true; this.updateStatus(this.t("stopping")); } },
+        { sep:true },
+        { label:t("debugger"), fn:()=>this.toggleDebugger() },
+        { label:t("watch"), fn:()=>this.showWatch() },
+        { label:t("callstack"), fn:()=>this.showCallstack() },
+        { sep:true },
+        { label:t("profile"), fn:()=>this.showProfile() },
+        { label:t("profile_chart"), fn:()=>this.showProfileChart() },
+        { sep:true },
+        { label:t("macro_rec"), fn:()=>this.toggleMacroRec() },
+        { label:t("macro_play"), fn:()=>this.playMacro() },
+        { sep:true },
+        { label:t("test_runner"), fn:()=>this.runTests() },
+        { sep:true },
+        { label:t("clear_console"), fn:()=>this.clearConsole() },
+        { label:t("clear_canvas"), fn:()=>this.clearCanvas() },
+        { label:t("copy_console"), fn:()=>this.copyConsole() },
+      ]},
+      { label:t("help"), items:[
+        { label:t("cmd_ref"), fn:()=>this.showCommandRef() },
+        { label:t("examples"), fn:()=>this.showExamples() },
+        { label:t("templates"), fn:()=>this.showTemplates() },
+        { label:t("snippet_mgr"), fn:()=>this.showSnippets() },
+        { label:t("tutorials"), fn:()=>this.showTutorials() },
+        { sep:true },
+        { label:t("doc_gen"), fn:()=>this.generateDocs() },
+        { sep:true },
+        { label:t("plugins"), fn:()=>this.showPlugins() },
+        { label:t("install_plugin"), fn:()=>this.installPlugin() },
+        { sep:true },
+        { label:t("achievements"), fn:()=>this.showAchievements() },
+        { label:t("stats"), fn:()=>this.showStats() },
+        { label:t("about"), fn:()=>this.showAbout() },
+      ]},
+    ];
+
+    const el = document.getElementById("menubar");
+    el.innerHTML = menus.map((m,i) =>
+      `<div class="mi" data-menu="${i}"><span>${m.label}</span><div class="dd">${
+        m.items.map(it => it.sep ? `<div class="sep"></div>` :
+          `<div class="it${it.chk?" chk":""}${it.chk&&it.on?" on":""}" data-mi="${i}" data-label="${it.label.replace(/"/g,"&quot;")}">${it.label}${it.acc?`<span class="ac">${it.acc}</span>`:""}</div>`
+        ).join("")
+      }</div></div>`
+    ).join("");
+    el.querySelectorAll(".mi").forEach(mi => {
+      mi.addEventListener("click", e => {
+        e.stopPropagation();
+        const open = mi.classList.contains("open");
+        el.querySelectorAll(".mi").forEach(x => x.classList.remove("open"));
+        if(!open) mi.classList.add("open");
+      });
+    });
+    el.querySelectorAll(".it").forEach(it => {
+      it.addEventListener("click", e => {
+        e.stopPropagation();
+        const menuIdx = +it.dataset.mi;
+        const label = it.dataset.label;
+        const item = menus[menuIdx].items.find(x => !x.sep && x.label === label);
+        if(item && item.fn){ try{ item.fn(); }catch(err){ console.error(err); } }
+        el.querySelectorAll(".mi").forEach(x => x.classList.remove("open"));
+      });
+    });
+    document.addEventListener("click", () => {
+      el.querySelectorAll(".mi").forEach(x => x.classList.remove("open"));
+    });
+  }
+
+  buildToolbar(){
+    const t = this.t.bind(this);
+    const btns = [
+      { id:"btn_new", ic:"📄", label:t("btn_new"), fn:()=>this.newDocument(), bg:"#3498db" },
+      { id:"btn_open", ic:"📂", label:t("btn_open"), fn:()=>this.openFile(), bg:"#f39c12" },
+      { id:"btn_save", ic:"💾", label:t("btn_save"), fn:()=>this.saveFile(), bg:"#27ae60" },
+      { id:"btn_run", ic:"▶️", label:t("btn_run"), fn:()=>this.runCode(), bg:"#e74c3c" },
+      { id:"btn_stop", ic:"⏹️", label:t("btn_stop"), fn:()=>{ this.interpreter.should_stop = true; this.updateStatus(this.t("stopping")); }, bg:"#8e44ad" },
+      { id:"btn_debug", ic:"🐞", label:t("btn_debug"), fn:()=>this.toggleDebugger(), bg:"#c0392b" },
+      { id:"btn_step", ic:"➡️", label:t("btn_step"), fn:()=>this.debugStep(), bg:"#d35400" },
+      { id:"btn_format", ic:"✨", label:t("btn_format"), fn:()=>this.formatCode(), bg:"#16a085" },
+      { id:"btn_test", ic:"🧪", label:t("btn_test"), fn:()=>this.runTests(), bg:"#2980b9" },
+      { id:"btn_snippets", ic:"✂️", label:t("btn_snippets"), fn:()=>this.showSnippets(), bg:"#8e44ad" },
+      { id:"btn_console", ic:"🧹", label:t("btn_console"), fn:()=>this.clearConsole(), bg:"#16a085" },
+      { id:"btn_canvas", ic:"🎨", label:t("btn_canvas"), fn:()=>this.clearCanvas(), bg:"#2c3e50" },
+      { id:"btn_find", ic:"🔍", label:t("btn_find"), fn:()=>this.findReplace(), bg:"#34495e" },
+      { id:"btn_help", ic:"📖", label:t("btn_help"), fn:()=>this.showCommandRef(), bg:"#7f8c8d" },
+    ];
+    const el = document.getElementById("toolbar");
+    el.innerHTML = btns.map(b =>
+      `<button class="tb" id="${b.id}" style="background:${b.bg}">
+        <span>${b.ic}</span><span>${b.label}</span>
+      </button>`
+    ).join("") + `<div id="progress"><div></div></div>`;
+    btns.forEach(b => { const e = document.getElementById(b.id); if(e) e.onclick = b.fn; });
+  }
+
+  /* ---------- pestañas ---------- */
+  buildTabs(){
+    const el = document.getElementById("tabsBar");
+    el.innerHTML = this.documents.map((d,i) =>
+      `<div class="tab${i===this.activeDocIdx?" on":""}" data-idx="${i}">
+        <span>${d.title}</span><span class="cl" data-close="${i}">×</span>
+      </div>`
+    ).join("");
+    el.querySelectorAll(".tab").forEach(t => {
+      t.addEventListener("click", e => {
+        if(e.target.classList.contains("cl")) return;
+        this.activeDocIdx = +t.dataset.idx;
+        this.loadActiveDoc();
+        this.buildTabs();
+      });
+    });
+    el.querySelectorAll(".cl").forEach(c => {
+      c.addEventListener("click", e => {
+        e.stopPropagation();
+        const idx = +c.dataset.close;
+        if(this.documents.length === 1){ this.documents[idx].content = ""; this.loadActiveDoc(); }
+        else { this.documents.splice(idx,1); this.activeDocIdx = Math.max(0, Math.min(this.activeDocIdx, this.documents.length-1)); this.loadActiveDoc(); this.buildTabs(); }
+      });
+    });
+  }
+
+  loadActiveDoc(){
+    const d = this.documents[this.activeDocIdx];
+    if(!d) return;
+    const ed = document.getElementById("editor");
+    ed.value = d.content;
+    this.updateEditor();
+  }
+  saveActiveDoc(){
+    const d = this.documents[this.activeDocIdx];
+    if(d){ d.content = document.getElementById("editor").value; }
+  }
+  newDocument(title, withDemo){
+    this.saveActiveDoc();
+    const t = title || this.t("new_tab_title");
+    const d = new Document(t, !title);
+    if(withDemo) d.content = this.demoContent();
+    this.documents.push(d);
+    this.activeDocIdx = this.documents.length - 1;
+    this.buildTabs();
+    this.loadActiveDoc();
+  }
+  closeTab(){
+    if(this.documents.length <= 1){ this.documents[0].content = ""; this.loadActiveDoc(); return; }
+    this.documents.splice(this.activeDocIdx, 1);
+    this.activeDocIdx = Math.max(0, this.activeDocIdx - 1);
+    this.buildTabs();
+    this.loadActiveDoc();
+  }
+
+  /* ---------- editor ---------- */
+  bindEditor(){
+    const ed = document.getElementById("editor");
+    ed.addEventListener("input", ()=>{ this.updateEditor(); this.saveActiveDoc(); });
+    ed.addEventListener("scroll", ()=>{
+      document.getElementById("highlight").scrollTop = ed.scrollTop;
+      document.getElementById("highlight").scrollLeft = ed.scrollLeft;
+      document.getElementById("lineNumbers").scrollTop = ed.scrollTop;
+      document.getElementById("minimap").scrollTop = ed.scrollTop;
+    });
+    ed.addEventListener("keydown", e => {
+      if(e.key === "Tab"){
+        e.preventDefault();
+        const s = ed.selectionStart, en = ed.selectionEnd;
+        if(s === en){
+          const sp = " ".repeat(this.state.tabSize);
+          ed.value = ed.value.slice(0,s) + sp + ed.value.slice(en);
+          ed.selectionStart = ed.selectionEnd = s + sp.length;
+        } else { this.indentSel(!e.shiftKey); }
+        this.updateEditor(); this.saveActiveDoc();
+      }
+      if(e.ctrlKey && e.key === "Enter"){ e.preventDefault(); this.runCode(); }
+      if(e.ctrlKey && e.key === " "){ e.preventDefault(); this.autocomplete(); }
+      if(this.macroRecording && e.key.length===1) this.macroEvents.push(e.key);
+    });
+    ed.addEventListener("keyup", ()=>this.updateCursor());
+    ed.addEventListener("click", ()=>this.updateCursor());
+  }
+
+  updateEditor(){
+    const ed = document.getElementById("editor");
+    const hl = document.getElementById("highlight");
+    const ln = document.getElementById("lineNumbers");
+    const mm = document.getElementById("minimap");
+    const text = ed.value;
+    const lines = text.split("\n");
+    ln.textContent = lines.map((_,i)=>i+1).join("\n");
+    hl.innerHTML = this.syntaxHighlight(text) + "\n";
+    mm.textContent = text;
+    hl.scrollTop = ed.scrollTop; hl.scrollLeft = ed.scrollLeft;
+    ln.scrollTop = ed.scrollTop; mm.scrollTop = ed.scrollTop;
+    document.getElementById("countText").textContent = `${lines.length} L · ${text.length} c`;
+  }
+
+  syntaxHighlight(code){
+    let h = code.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    h = h.replace(/(\/\/[^\n]*)/g, '<span class="cm">$1</span>');
+    h = h.replace(/(&quot;[^&]*?&quot;|"[^"\n]*"|'[^'\n]*')/g, '<span class="st">$1</span>');
+    h = h.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="nm">$1</span>');
+    h = h.replace(/^(\s*)([A-Za-z_ñÑáéíóúÁÉÍÓÚ][A-Za-z0-9_ñÑáéíóúÁÉÍÓÚ]*)(\s*:)/gm,
+      '$1<span class="kw">$2</span>$3');
+    for(const c in COLOR_MAP){
+      const re = new RegExp("\\b("+c+")\\b","g");
+      h = h.replace(re, '<span class="co">$1</span>');
+    }
+    return h;
+  }
+
+  updateCursor(){
+    const ed = document.getElementById("editor");
+    const pos = ed.selectionStart;
+    const before = ed.value.slice(0,pos);
+    const ln = before.split("\n").length;
+    const col = pos - before.lastIndexOf("\n");
+    document.getElementById("cursorPos").textContent = `Ln ${ln}, Col ${col}`;
+  }
+
+  bindShortcuts(){
+    document.addEventListener("keydown", e => {
+      if(e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT"){
+        if(e.key === "F5"){ e.preventDefault(); this.runCode(); return; }
+        if(e.key === "F6"){ e.preventDefault(); this.runSelection(); return; }
+        if(e.ctrlKey && e.key === "Enter"){ e.preventDefault(); this.runCode(); return; }
+        if(e.ctrlKey && e.key.toLowerCase() === "s"){ e.preventDefault(); this.saveFile(); return; }
+        if(e.ctrlKey && e.key.toLowerCase() === "f"){ e.preventDefault(); this.findReplace(); return; }
+        if(e.ctrlKey && e.key.toLowerCase() === "g"){ e.preventDefault(); this.gotoLine(); return; }
+        if(e.ctrlKey && e.key.toLowerCase() === "d"){ e.preventDefault(); this.duplicateLine(); return; }
+        if(e.ctrlKey && e.key === "/"){ e.preventDefault(); this.toggleComment(); return; }
+        if(e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "p"){ e.preventDefault(); this.openCmdPalette(); return; }
+        if(e.key === "Escape"){ this.interpreter.should_stop = true; this.updateStatus(this.t("stopping")); return; }
+      }
+      if(e.key === "F11"){ e.preventDefault(); this.toggleFullscreen(); }
+      if(e.key === "Escape"){ this.closeModal(); this.closeCmdPalette(); }
+      if(e.key === "F2"){ e.preventDefault(); this.jumpBookmark(e.shiftKey ? -1 : 1); }
+      if(e.ctrlKey && e.key === "F2"){ e.preventDefault(); this.toggleBookmark(); }
+      if(e.ctrlKey && e.key.toLowerCase() === "n"){ e.preventDefault(); this.newDocument(); }
+      if(e.ctrlKey && e.key.toLowerCase() === "o"){ e.preventDefault(); this.openFile(); }
+      if(e.ctrlKey && e.key.toLowerCase() === "w"){ e.preventDefault(); this.closeTab(); }
+    });
+  }
+
+  /* ---------- modo gráfico ---------- */
+  applyMode(mode){
+    this.state.mode = mode;
+    const cfg = MODES[mode];
+    document.body.style.background = cfg.bg;
+    document.body.style.color = cfg.fg;
+    document.body.style.fontFamily = cfg.font_family;
+    document.body.style.fontSize = (cfg.font_size+1) + "px";
+    document.getElementById("menubar").style.background = cfg.menubar_bg;
+    document.getElementById("menubar").style.color = cfg.menubar_fg;
+    document.querySelectorAll("#menubar .dd").forEach(d => { d.style.background = cfg.menubar_bg; d.style.color = cfg.menubar_fg; });
+    document.getElementById("toolbar").style.background = cfg.toolbar_bg;
+    document.getElementById("toolbar").style.color = cfg.toolbar_fg;
+    document.querySelectorAll(".tb").forEach(b => b.style.color = cfg.toolbar_fg);
+    document.getElementById("sidebar").style.background = cfg.sidebar_bg;
+    document.getElementById("sidebar").style.color = cfg.sidebar_fg;
+    document.getElementById("sbTitle").style.background = cfg.sidebar_hdr;
+    document.querySelectorAll("#sbBtns button").forEach(b => b.style.color = cfg.sidebar_fg);
+    document.getElementById("rightCol").style.background = cfg.editor_bg;
+    document.getElementById("editorContainer").style.background = cfg.editor_bg;
+    const ed = document.getElementById("editor");
+    ed.style.fontFamily = cfg.font_family;
+    ed.style.fontSize = cfg.font_size + "px";
+    ed.style.caretColor = cfg.editor_fg;
+    const hl = document.getElementById("highlight");
+    hl.style.fontFamily = cfg.font_family;
+    hl.style.fontSize = cfg.font_size + "px";
+    hl.style.background = cfg.editor_bg;
+    hl.style.color = cfg.editor_fg;
+    const ln = document.getElementById("lineNumbers");
+    ln.style.background = cfg.editor_ln_bg;
+    ln.style.color = cfg.editor_ln_fg;
+    ln.style.fontFamily = cfg.font_family;
+    ln.style.fontSize = cfg.font_size + "px";
+    document.getElementById("minimap").style.background = cfg.editor_ln_bg;
+    document.getElementById("bottomArea").style.background = cfg.console_bg;
+    this.consoleEl.style.background = cfg.console_bg;
+    this.consoleEl.style.color = cfg.console_fg;
+    this.consoleEl.style.fontFamily = cfg.font_family;
+    this.consoleEl.style.fontSize = (cfg.font_size) + "px";
+    document.getElementById("canvasWrap").style.background = cfg.bg;
+    this.canvasEl.style.background = cfg.bg;
+    document.getElementById("scanlines").style.display = cfg.scanlines ? "block" : "none";
+    document.getElementById("statusbar").style.background = cfg.statusbar_bg;
+    document.getElementById("statusbar").style.color = cfg.statusbar_fg;
+    document.querySelectorAll("#statusbar .sb").forEach(s => s.style.color = cfg.statusbar_fg);
+    this.resizeCanvas();
+    this.redrawCanvas();
+    this.updateStatus();
+  }
+
+  apply_video_mode(mode, fromScript){
+    let reset = false;
+    if(!fromScript && mode === this.state.mode && mode !== DEFAULT_MODE){ mode = DEFAULT_MODE; reset = true; }
+    this.applyMode(mode);
+    this.buildMenubar();
+    if(reset) this.toast(this.t("mode_reset") + " " + MODES[mode].name);
+    else this.toast(this.t("mode_set") + " " + MODES[mode].name);
+  }
+
+  apply_palette(pal, fromScript){
+    let reset = false;
+    if(!fromScript && pal === this.state.palette && pal !== DEFAULT_PALETTE){ pal = DEFAULT_PALETTE; reset = true; }
+    this.state.palette = pal;
+    this.redrawCanvas();
+    this.buildMenubar();
+    if(reset) this.toast(this.t("palette_reset") + " " + pal.toUpperCase());
+    else this.toast(this.t("palette_set") + " " + pal.toUpperCase());
+  }
+
+  change_language(code, fromScript){
+    let reset = false;
+    if(!fromScript && code === this.state.lang && code !== DEFAULT_LANG){ code = DEFAULT_LANG; reset = true; }
+    this.state.lang = code;
+    this.i18n.set_lang(code);
+    document.getElementById("langStatus").textContent = "[" + code.toUpperCase() + "]";
+    this.buildMenubar();
+    this.buildToolbar();
+    document.getElementById("sbTitle").textContent = this.t("project");
+    document.getElementById("consoleTitle").textContent = this.t("console_t");
+    document.getElementById("canvasTitle").textContent = this.t("canvas_t");
+    document.getElementById("sbOpen").querySelector("span").textContent = this.t("btn_open");
+    document.getElementById("sbRefresh").querySelector("span").textContent = this.t("refresh");
+    if(reset) this.toast(this.t("lang_reset") + " " + code.toUpperCase());
+    else this.toast(this.t("language_changed") + " " + code.toUpperCase());
+  }
+
+  /* ---------- canvas ---------- */
+  resizeCanvas(){
+    const dpr = window.devicePixelRatio || 1;
+    const W = this.canvasEl.parentElement.clientWidth;
+    const H = this.canvasEl.parentElement.clientHeight;
+    this.canvasEl.width = W * dpr;
+    this.canvasEl.height = H * dpr;
+    this.canvasEl.style.width = W + "px";
+    this.canvasEl.style.height = H + "px";
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.ctx.fillStyle = MODES[this.state.mode].bg;
+    this.ctx.fillRect(0, 0, W, H);
+  }
+  clearCanvas(){
+    this.drawCommands = [];
+    const W = this.canvasEl.clientWidth, H = this.canvasEl.clientHeight;
+    this.ctx.fillStyle = MODES[this.state.mode].bg;
+    this.ctx.fillRect(0, 0, W, H);
+  }
+  redrawCanvas(){
+    const W = this.canvasEl.clientWidth, H = this.canvasEl.clientHeight;
+    this.ctx.fillStyle = MODES[this.state.mode].bg;
+    this.ctx.fillRect(0, 0, W, H);
+    for(const cmd of this.drawCommands){ try{ cmd(this.ctx); }catch(e){} }
+  }
+  bindCanvasKey(key, handler){
+    this.canvasKeyBindings[key] = handler;
+    if(!this._canvasKeyListener){
+      this._canvasKeyListener = e => {
+        const fn = this.canvasKeyBindings[e.key];
+        if(fn) fn();
+      };
+      window.addEventListener("keydown", this._canvasKeyListener);
+    }
+  }
+  bindCanvasMouse(ev, handler){
+    const map = { click:"click", move:"mousemove", dblclick:"dblclick" };
+    const domEv = map[ev] || "click";
+    this.canvasEl.addEventListener(domEv, handler);
+  }
+
+  /* ---------- consola ---------- */
+  log(text, level="info"){
+    const span = document.createElement("span");
+    span.className = level;
+    span.textContent = text + "\n";
+    this.consoleEl.appendChild(span);
+    this.consoleEl.scrollTop = this.consoleEl.scrollHeight;
+  }
+  clearConsole(){ this.consoleEl.innerHTML = ""; }
+  copyConsole(){
+    navigator.clipboard.writeText(this.consoleEl.textContent).then(
+      ()=>this.toast("📋 Copiado"), ()=>this.toast("⚠️ No se pudo copiar"));
+  }
+  saveConsole(){
+    const blob = new Blob([this.consoleEl.textContent], {type:"text/plain"});
+    this.downloadBlob(blob, "console.txt");
+  }
+  saveCanvas(){
+    const a = document.createElement("a");
+    a.href = this.canvasEl.toDataURL("image/png");
+    a.download = "canvas.png";
+    a.click();
+  }
+
+  /* ---------- audio ---------- */
+  beep(freq, ms){
+    try{
+      if(!this.audioCtx) this.audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+      const osc = this.audioCtx.createOscillator();
+      const gain = this.audioCtx.createGain();
+      osc.frequency.value = freq;
+      osc.connect(gain); gain.connect(this.audioCtx.destination);
+      gain.gain.value = 0.08;
+      osc.start(); osc.stop(this.audioCtx.currentTime + ms/1000);
+    }catch(e){}
+  }
+  playMusic(seq){
+    const notes = { do:262, re:294, mi:330, fa:349, sol:392, la:440, si:494, do5:523 };
+    const parts = seq.split(",").map(s=>s.trim()).filter(Boolean);
+    try{
+      if(!this.audioCtx) this.audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+      let t = this.audioCtx.currentTime;
+      parts.forEach(p => {
+        let f = 440, d = 0.15;
+        if(p.includes(":")){ const [a,b] = p.split(":"); f = parseInt(a)||440; d = (parseInt(b)||150)/1000; }
+        else { f = notes[p.toLowerCase()] || 440; }
+        const osc = this.audioCtx.createOscillator();
+        const gain = this.audioCtx.createGain();
+        osc.frequency.value = f;
+        osc.connect(gain); gain.connect(this.audioCtx.destination);
+        gain.gain.setValueAtTime(0.08, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + d);
+        osc.start(t); osc.stop(t + d);
+        t += d + 0.03;
+      });
+    }catch(e){}
+  }
+
+  /* ---------- ejecución ---------- */
+  async runCode(){
+    if(this.executionRunning){ this.toast("⚠️ " + this.t("msg_already_running")); return; }
+    this.saveActiveDoc();
+    this.executionRunning = true;
+    this.updateStatus(this.t("running"));
+    this.setProgress(0);
+    this.sessionStats.runs++;
+    this.history.push({ t: new Date().toISOString(), code: document.getElementById("editor").value });
+    if(this.history.length > 50) this.history.shift();
+    try{
+      await this.interpreter.execute(document.getElementById("editor").value);
+    }catch(e){
+      this.log("❌ " + (e.message||e), "error");
+    }
+    this.executionRunning = false;
+    this.setProgress(100);
+    this.updateStatus(this.t("ready"));
+  }
+  async runSelection(){
+    const ed = document.getElementById("editor");
+    const s = ed.selectionStart, en = ed.selectionEnd;
+    if(s === en){ this.toast("⚠️ " + this.t("msg_select_code")); return; }
+    this.executionRunning = true;
+    await this.interpreter.execute(ed.value.slice(s,en));
+    this.executionRunning = false;
+  }
+  async runFromCursor(){
+    const ed = document.getElementById("editor");
+    this.executionRunning = true;
+    await this.interpreter.execute(ed.value.slice(ed.selectionStart));
+    this.executionRunning = false;
+  }
+  validateSyntax(){
+    const problems = this.interpreter.validate(document.getElementById("editor").value);
+    if(problems.length === 0) this.toast(this.t("validate_ok"));
+    else this.showModal("Validar sintaxis", problems.map(p=>`L${p[0]}: ${p[1]}`).join("\n"));
+  }
+  onExecutionFinished(secs, lines){
+    this.sessionStats.time += secs;
+    this.sessionStats.stmts += lines;
+    this.updateStatus(`✅ ${lines} stmt · ${secs.toFixed(3)}s`);
+  }
+  toggleDebugger(){ this.interpreter.debug_mode = !this.interpreter.debug_mode; this.toast("🐞 Debug: " + (this.interpreter.debug_mode ? "ON" : "OFF")); }
+  debugStep(){ this.interpreter.step_mode = true; this.toast("➡️ Step"); }
+  runTests(){
+    this.runCode().then(()=>{
+      const res = this.interpreter.test_results;
+      if(!res.length) return;
+      const passed = res.filter(r=>r[1]).length;
+      this.showModal(this.t("test_runner"), `${passed}/${res.length}\n\n` + res.map(r => `${r[1]?"✅":"❌"} ${r[0]}: ${r[2]}`).join("\n"));
+    });
+  }
+  setProgress(p){
+    const bar = document.querySelector("#progress > div");
+    if(bar){ bar.style.width = p + "%"; }
+  }
+
+  /* ---------- helpers de edición ---------- */
+  duplicateLine(){
+    const ed = document.getElementById("editor");
+    const pos = ed.selectionStart;
+    const before = ed.value.slice(0,pos);
+    const lines = ed.value.split("\n");
+    const ln = before.split("\n").length - 1;
+    lines.splice(ln+1, 0, lines[ln]);
+    ed.value = lines.join("\n");
+    this.updateEditor(); this.saveActiveDoc();
+  }
+  toggleComment(){
+    const ed = document.getElementById("editor");
+    const s = ed.selectionStart, en = ed.selectionEnd;
+    const lines = ed.value.split("\n");
+    const startLn = ed.value.slice(0,s).split("\n").length - 1;
+    const endLn = ed.value.slice(0,en).split("\n").length - 1;
+    for(let i = startLn; i <= endLn; i++){
+      const l = lines[i];
+      if(/^\s*\/\//.test(l)) lines[i] = l.replace(/^(\s*)\/\/\s?/, "$1");
+      else lines[i] = l.replace(/^(\s*)/, "$1// ");
+    }
+    ed.value = lines.join("\n");
+    this.updateEditor(); this.saveActiveDoc();
+  }
+  indentSel(positive){
+    const ed = document.getElementById("editor");
+    const s = ed.selectionStart, en = ed.selectionEnd;
+    const lines = ed.value.split("\n");
+    const startLn = ed.value.slice(0,s).split("\n").length - 1;
+    const endLn = ed.value.slice(0,en).split("\n").length - 1;
+    const sp = " ".repeat(this.state.tabSize);
+    for(let i = startLn; i <= endLn; i++){
+      lines[i] = positive ? sp + lines[i] : lines[i].replace(new RegExp("^ {1,"+this.state.tabSize+"}"), "");
+    }
+    ed.value = lines.join("\n");
+    this.updateEditor(); this.saveActiveDoc();
+  }
+  formatCode(){
+    const ed = document.getElementById("editor");
+    const lines = ed.value.split("\n");
+    let indent = 0;
+    const out = [];
+    for(const raw of lines){
+      const s = raw.trim();
+      if(/^(fin_|sino)/i.test(s)) indent = Math.max(0, indent-1);
+      out.push(" ".repeat(indent*this.state.tabSize) + s);
+      if(/^(si:|mientras:|bucle:|funcion:|clase:|test:|sino)/i.test(s)) indent++;
+    }
+    ed.value = out.join("\n");
+    this.updateEditor(); this.saveActiveDoc();
+  }
+  gotoLine(){
+    const n = prompt(this.t("dlg_goto_num"));
+    if(!n || isNaN(+n)) return;
+    const ed = document.getElementById("editor");
+    const lines = ed.value.split("\n");
+    let pos = 0;
+    for(let i = 0; i < Math.min(+n-1, lines.length); i++) pos += lines[i].length + 1;
+    ed.focus();
+    ed.selectionStart = ed.selectionEnd = pos;
+    this.updateCursor();
+  }
+  renameVariable(){
+    const oldN = prompt(this.t("dlg_rename_old")); if(!oldN) return;
+    const newN = prompt(this.t("dlg_rename_new")); if(!newN) return;
+    const ed = document.getElementById("editor");
+    ed.value = ed.value.replace(new RegExp("\\b"+oldN.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b","g"), newN);
+    this.updateEditor(); this.saveActiveDoc();
+  }
+  extractFunction(){
+    const ed = document.getElementById("editor");
+    const s = ed.selectionStart, en = ed.selectionEnd;
+    if(s === en){ this.toast("⚠️ " + this.t("msg_extract_hint")); return; }
+    const name = prompt(this.t("dlg_extract_name")); if(!name) return;
+    const body = ed.value.slice(s,en).split("\n").map(l=>"    "+l).join("\n");
+    const block = `funcion:(${name})\n${body}\nfin_funcion`;
+    ed.value = ed.value.slice(0,s) + block + ed.value.slice(en);
+    this.updateEditor(); this.saveActiveDoc();
+  }
+  findReplace(){
+    this.showModal(this.t("find"), "", () => {
+      const body = document.getElementById("modalBody");
+      body.innerHTML = `
+        <div class="row"><label>${this.t("dlg_search")}</label><input id="fFind"></div>
+        <div class="row"><label>${this.t("dlg_replace")}</label><input id="fRepl"></div>
+        <div class="row"><label></label><label><input type="checkbox" id="fRegex" style="width:auto"> ${this.t("dlg_regex")}</label></div>
+        <div>
+          <button id="fNext">${this.t("dlg_find_btn")}</button>
+          <button id="fAll">${this.t("dlg_replace_all")}</button>
+        </div>`;
+      document.getElementById("fNext").onclick = () => this._findNext();
+      document.getElementById("fAll").onclick = () => this._replaceAll();
+    });
+  }
+  _findNext(){
+    const n = document.getElementById("fFind").value; if(!n) return;
+    const ed = document.getElementById("editor");
+    const rx = document.getElementById("fRegex").checked;
+    try{
+      let idx = -1;
+      if(rx){ const m = ed.value.slice(ed.selectionEnd).match(new RegExp(n)); if(m) idx = ed.selectionEnd + m.index; }
+      else idx = ed.value.indexOf(n, ed.selectionEnd);
+      if(idx < 0) idx = ed.value.indexOf(n);
+      if(idx >= 0){ ed.focus(); ed.selectionStart = idx; ed.selectionEnd = idx + n.length; this.updateCursor(); }
+    }catch(e){ this.toast("Regex: " + e.message); }
+  }
+  _replaceAll(){
+    const n = document.getElementById("fFind").value; if(!n) return;
+    const r = document.getElementById("fRepl").value;
+    const ed = document.getElementById("editor");
+    const rx = document.getElementById("fRegex").checked;
+    try{
+      if(rx) ed.value = ed.value.replace(new RegExp(n,"g"), r);
+      else ed.value = ed.value.split(n).join(r);
+      this.updateEditor(); this.saveActiveDoc();
+    }catch(e){ this.toast("Regex: " + e.message); }
+  }
+  searchAll(){
+    const needle = prompt(this.t("search_placeholder")); if(!needle) return;
+    const hits = [];
+    this.documents.forEach((d,i) => {
+      d.content.split("\n").forEach((l, j) => {
+        if(l.includes(needle)) hits.push(`tab ${i+1} L${j+1}: ${l.trim()}`);
+      });
+    });
+    this.showModal(this.t("results_title"), hits.join("\n") || this.t("no_matches"));
+  }
+  autocomplete(){
+    const ed = document.getElementById("editor");
+    const pos = ed.selectionStart;
+    const before = ed.value.slice(0,pos);
+    const prefix = (before.match(/[A-Za-z_][A-Za-z0-9_]*$/)?.[0] || "");
+    if(!prefix) return;
+    const cmds = this.i18n.command_list();
+    const matches = cmds.filter(c => c.startsWith(prefix));
+    if(matches.length === 1){
+      ed.value = ed.value.slice(0,pos) + matches[0].slice(prefix.length) + ed.value.slice(pos);
+      ed.selectionStart = ed.selectionEnd = pos + matches[0].length - prefix.length;
+      this.updateEditor(); this.saveActiveDoc();
+    } else if(matches.length > 1){
+      this.toast(matches.slice(0,8).join(" · "));
+    }
+  }
+  changeFontSize(delta){ this.state.fontSize = Math.max(8, Math.min(28, this.state.fontSize + delta)); this.applyMode(this.state.mode); }
+  resetFontSize(){ this.state.fontSize = MODES[this.state.mode].font_size; this.applyMode(this.state.mode); }
+  changeFontFamily(){ const f = prompt(this.t("dlg_font_prompt"), this.state.fontFamily); if(f) { this.state.fontFamily = f; MODES[this.state.mode].font_family = f; this.applyMode(this.state.mode); } }
+  changeTabSize(){ const n = prompt(this.t("dlg_tab_size"), this.state.tabSize); if(n && +n>=2 && +n<=8) this.state.tabSize = +n; }
+  toggleWrap(){
+    this.state.wordWrap = !this.state.wordWrap;
+    document.getElementById("editor").style.whiteSpace = this.state.wordWrap ? "pre-wrap" : "pre";
+    document.getElementById("highlight").style.whiteSpace = this.state.wordWrap ? "pre-wrap" : "pre";
+    this.buildMenubar();
+  }
+  toggleTimestamps(){ this.state.showTimestamps = !this.state.showTimestamps; this.interpreter.show_timestamps = this.state.showTimestamps; this.buildMenubar(); }
+  toggleTheme(){
+    const order = ["dark","light","mono","solar","dracula"];
+    const themes = {
+      dark:{bg:"#282c34",fg:"#ffffff"},light:{bg:"#ffffff",fg:"#2c3e50"},
+      mono:{bg:"#1e1e1e",fg:"#d4d4d4"},solar:{bg:"#fdf6e3",fg:"#586e75"},
+      dracula:{bg:"#282a36",fg:"#f8f8f2"},
+    };
+    const i = order.indexOf(this.state.theme);
+    this.state.theme = order[(i+1) % order.length];
+    const cfg = themes[this.state.theme];
+    const ed = document.getElementById("editor");
+    const hl = document.getElementById("highlight");
+    ed.style.color = cfg.fg; ed.style.caretColor = cfg.fg;
+    hl.style.background = cfg.bg; hl.style.color = cfg.fg;
+    this.consoleEl.style.background = cfg.bg; this.consoleEl.style.color = cfg.fg;
+    this.updateStatus("Theme: " + this.state.theme);
+  }
+  toggleFullscreen(){
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+    else document.exitFullscreen().catch(()=>{});
+  }
+  togglePresentation(){ document.body.classList.toggle("present"); setTimeout(()=>{ this.resizeCanvas(); this.redrawCanvas(); }, 50); }
+  toggleBookmark(){
+    const ed = document.getElementById("editor");
+    const ln = ed.value.slice(0, ed.selectionStart).split("\n").length - 1;
+    const d = this.documents[this.activeDocIdx];
+    if(d.bookmarks.has(ln)) d.bookmarks.delete(ln);
+    else d.bookmarks.add(ln);
+    this.toast(`🔖 ${[...d.bookmarks].sort((a,b)=>a-b).join(", ") || "—"}`);
+  }
+  jumpBookmark(dir){
+    const d = this.documents[this.activeDocIdx];
+    if(!d.bookmarks.size) return;
+    const ed = document.getElementById("editor");
+    const cur = ed.value.slice(0, ed.selectionStart).split("\n").length - 1;
+    const bms = [...d.bookmarks].sort((a,b)=>a-b);
+    let target = null;
+    if(dir > 0){ for(const l of bms){ if(l > cur){ target = l; break; } } if(target===null) target = bms[0]; }
+    else { for(const l of [...bms].reverse()){ if(l < cur){ target = l; break; } } if(target===null) target = bms[bms.length-1]; }
+    const lines = ed.value.split("\n");
+    let pos = 0; for(let i=0;i<target;i++) pos += lines[i].length + 1;
+    ed.focus(); ed.selectionStart = ed.selectionEnd = pos;
+    this.updateCursor();
+  }
+  listBookmarks(){
+    const d = this.documents[this.activeDocIdx];
+    this.showModal(this.t("bookmarks"), [...d.bookmarks].sort((a,b)=>a-b).join("\n") || "—");
+  }
+
+  /* ---------- sidebar ---------- */
+  buildSidebar(){
+    const tree = document.getElementById("sbTree");
+    tree.innerHTML = `
+      <div class="nd fd">proyecto</div>
+      <div class="nd fl" data-file="main.ez" style="padding-left:18px">main.ez</div>
+      <div class="nd fl" data-file="utils.ez" style="padding-left:18px">utils.ez</div>`;
+    tree.querySelectorAll(".nd.fl").forEach(n => n.addEventListener("click", () => this.toast("📄 " + n.dataset.file)));
+    document.getElementById("sbOpen").onclick = () => this.openFile();
+    document.getElementById("sbRefresh").onclick = () => this.toast("🔄 Proyecto recargado");
+  }
+
+  /* ---------- status / toast / modal ---------- */
+  updateStatus(msg){ document.getElementById("statusText").textContent = msg || this.t("ready"); }
+  toast(msg){
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.add("on");
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(()=>el.classList.remove("on"), 2000);
+  }
+  showModal(title, body, cb){
+    document.getElementById("modalTitle").textContent = title;
+    const b = document.getElementById("modalBody");
+    b.textContent = body || "";
+    document.getElementById("modalBg").classList.add("on");
+    if(cb) cb();
+  }
+  closeModal(){ document.getElementById("modalBg").classList.remove("on"); }
+
+  /* ---------- paleta de comandos ---------- */
+  bindCmdPalette(){
+    const inp = document.getElementById("cmdPaletteInput");
+    inp.addEventListener("input", () => this.refreshCmdPalette());
+    inp.addEventListener("keydown", e => {
+      if(e.key === "Escape"){ this.closeCmdPalette(); }
+      if(e.key === "Enter"){ const li = document.querySelector("#cmdPaletteList .li.on"); if(li) li.click(); }
+    });
+    document.getElementById("modalClose").onclick = () => this.closeModal();
+    document.getElementById("modalBg").onclick = e => { if(e.target.id === "modalBg") this.closeModal(); };
+    document.getElementById("consoleClear").onclick = () => this.clearConsole();
+    document.getElementById("consoleCopy").onclick = () => this.copyConsole();
+    document.getElementById("canvasClear").onclick = () => this.clearCanvas();
+  }
+  openCmdPalette(){ document.getElementById("cmdPalette").classList.add("on"); document.getElementById("cmdPaletteInput").value = ""; this.refreshCmdPalette(); document.getElementById("cmdPaletteInput").focus(); }
+  closeCmdPalette(){ document.getElementById("cmdPalette").classList.remove("on"); }
+  refreshCmdPalette(){
+    const q = document.getElementById("cmdPaletteInput").value.toLowerCase();
+    const actions = {
+      "Nuevo":()=>this.newDocument(), "Abrir":()=>this.openFile(), "Guardar":()=>this.saveFile(),
+      "Ejecutar":()=>this.runCode(), "Ejecutar selección":()=>this.runSelection(),
+      "Detener":()=>{ this.interpreter.should_stop = true; },
+      "Buscar":()=>this.findReplace(), "Ir a línea":()=>this.gotoLine(),
+      "Formatear":()=>this.formatCode(), "Referencia":()=>this.showCommandRef(),
+      "Ejemplos":()=>this.showExamples(), "Tutoriales":()=>this.showTutorials(),
+      "Snippets":()=>this.showSnippets(), "Stats":()=>this.showStats(),
+      "Tema":()=>this.toggleTheme(), "Fullscreen":()=>this.toggleFullscreen(),
+      "Presentación":()=>this.togglePresentation(),
+      "Modo Normal":()=>this.apply_video_mode("normal"),
+      "Modo 8bit":()=>this.apply_video_mode("8bit"),
+      "Modo 16bit":()=>this.apply_video_mode("16bit"),
+      "Paleta NES":()=>this.apply_palette("nes"),
+      "Paleta SNES":()=>this.apply_palette("snes"),
+      "Paleta Game Boy":()=>this.apply_palette("gameboy"),
+      "Idioma ES":()=>this.change_language("es"),
+      "Idioma EN":()=>this.change_language("en"),
+      "Idioma PT":()=>this.change_language("pt"),
+      "Debug":()=>this.toggleDebugger(), "Watch":()=>this.showWatch(),
+      "Callstack":()=>this.showCallstack(), "Perfil":()=>this.showProfile(),
+      "Tests":()=>this.runTests(), "Historial":()=>this.showHistory(),
+      "Diff":()=>this.showDiff(), "Logros":()=>this.showAchievements(),
+    };
+    const keys = Object.keys(actions).filter(k => k.toLowerCase().includes(q));
+    const list = document.getElementById("cmdPaletteList");
+    list.innerHTML = keys.map((k,i) => `<div class="li${i===0?" on":""}" data-k="${k}">${k}</div>`).join("");
+    list.querySelectorAll(".li").forEach(li => {
+      li.onclick = () => { this.closeCmdPalette(); actions[li.dataset.k](); };
+    });
+  }
+
+  /* ---------- diálogos ---------- */
+  inspectVars(){
+    const vars = this.interpreter.variables;
+    const lines = Object.keys(vars).map(k => `${k} = ${JSON.stringify(vars[k])}`).join("\n");
+    this.showModal(this.t("vars"), lines || "(vacío)");
+  }
+  exportVars(){
+    const blob = new Blob([JSON.stringify(this.interpreter.variables, null, 2)], {type:"application/json"});
+    this.downloadBlob(blob, "vars.json");
+  }
+  importVars(){
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".json";
+    inp.onchange = () => {
+      const f = inp.files[0]; if(!f) return;
+      const r = new FileReader();
+      r.onload = () => { try{ Object.assign(this.interpreter.variables, JSON.parse(r.result)); }catch(e){ this.toast("⚠️ JSON inválido"); } };
+      r.readAsText(f);
+    };
+    inp.click();
+  }
+  showWatch(){
+    const i = this.interpreter;
+    const lines = Object.keys(i.variables).map(k => `${k} = ${JSON.stringify(i.variables[k])}`).join("\n");
+    this.showModal(this.t("watch"), lines || "(—)");
+  }
+  showCallstack(){ this.showModal(this.t("callstack"), (this.interpreter.call_stack.join(" → ")) || "(—)"); }
+  showProfile(){
+    const t = this.interpreter.line_times;
+    const rows = Object.keys(t).map(k => [k, t[k]]).sort((a,b)=>b[1]-a[1]).slice(0,40);
+    this.showModal(this.t("profile"), rows.map(([l,ms]) => `L${l}: ${ms.toFixed(2)} ms`).join("\n") || "—");
+  }
+  showProfileChart(){
+    const t = this.interpreter.line_times;
+    if(!Object.keys(t).length){ this.showModal(this.t("profile_chart"), "—"); return; }
+    const items = Object.keys(t).map(k=>[+k, t[k]]).sort((a,b)=>a[0]-b[0]);
+    const maxV = Math.max(...items.map(x=>x[1])) || 1;
+    const bars = items.map(([ln,v]) => {
+      const w = Math.round(v/maxV*50);
+      return `L${String(ln).padStart(3)}: ${"█".repeat(w)} ${v.toFixed(2)}ms`;
+    }).join("\n");
+    this.showModal(this.t("profile_chart"), bars);
+  }
+  toggleMacroRec(){ this.macroRecording = !this.macroRecording; this.macroEvents = []; this.toast("🎙 Macro: " + (this.macroRecording?"REC":"STOP")); }
+  playMacro(){
+    if(!this.macroEvents.length) return;
+    const ed = document.getElementById("editor");
+    ed.value += this.macroEvents.join("");
+    this.updateEditor(); this.saveActiveDoc();
+  }
+  showHistory(){
+    if(!this.history.length){ this.showModal(this.t("history"), "—"); return; }
+    this.showModal(this.t("history"), this.history.slice(-20).reverse().map(h => `${h.t} · ${h.code.length} chars`).join("\n"));
+  }
+  showDiff(){
+    if(this.history.length < 2){ this.showModal(this.t("diff"), "—"); return; }
+    const a = this.history[this.history.length-2].code.split("\n");
+    const b = this.history[this.history.length-1].code.split("\n");
+    const out = [];
+    const maxN = Math.max(a.length, b.length);
+    for(let i=0;i<maxN;i++){
+      if((a[i]||"") !== (b[i]||"")){
+        if(a[i] !== undefined) out.push("- " + a[i]);
+        if(b[i] !== undefined) out.push("+ " + b[i]);
+      }
+    }
+    this.showModal(this.t("diff"), out.join("\n") || "(sin cambios)");
+  }
+  showSnippets(){
+    this.showModal(this.t("snippet_mgr"), "", () => {
+      const b = document.getElementById("modalBody");
+      b.innerHTML = `<div class="listbox">${Object.keys(this.snippets).map(k => `<div class="li" data-k="${k}">${k}</div>`).join("")}</div>`;
+      b.querySelectorAll(".li").forEach(li => li.onclick = () => {
+        document.getElementById("editor").value += "\n" + this.snippets[li.dataset.k];
+        this.updateEditor(); this.saveActiveDoc();
+        this.closeModal();
+      });
+    });
+  }
+  showTutorials(){
+    const tuts = [
+      ["1. Hola mundo", 'mostrar "¡Hola!"'],
+      ["2. Variables", 'var:(x, 10)\nincrementar:(x, 5)\nmostrar x'],
+      ["3. Condicional", 'si:(1 == 1)\n    mostrar "sí"\nfin_si'],
+      ["4. Bucle", 'bucle:(3)\n    mostrar "vez"\nfin_bucle'],
+      ["5. Función", 'funcion:(saluda, n)\n    mostrar "hola"\nfin_funcion\nllamar:(saluda)'],
+      ["6. Clase", 'clase:(Perro)\n    funcion:(ladra)\n        mostrar "guau"\n    fin_funcion\nfin_clase\nnuevo:(p, Perro)\nllamar_metodo:(p, ladra)'],
+      ["7. Test", 'test:("suma")\n    sumar:(r, 2, 2)\n    afirmar_igual:(r, 4)\nfin_test'],
+      ["8. Sprite", 'sprite:(a, 20, 20, 16, 16, "rojo")\nmover_sprite:(a, 30, 0)'],
+      ["9. Strings nuevos", 'trim:(x, "  hola  ")\nmostrar x\nsubcadena:(y, "abcdef", 1, 4)\nmostrar y'],
+      ["10. Listas avanzadas", 'rango:(l, 1, 6)\nmostrar l\nfiltro_pares:(p, l)\nmostrar p\npromedio_lista:(avg, l)\nmostrar avg'],
+      ["11. Bits", 'bit_and:(r, 12, 10)\nmostrar r\nshl:(s, 1, 4)\nmostrar s'],
+      ["12. JSON", 'json_dumps:(j, [1,2,3])\nmostrar j\njson_loads:(l, j)\nmostrar l'],
+    ];
+    this.showModal(this.t("tutorials"), "", () => {
+      const b = document.getElementById("modalBody");
+      b.innerHTML = `<div class="listbox">${tuts.map((t,i) => `<div class="li" data-i="${i}">${t[0]}</div>`).join("")}</div>`;
+      b.querySelectorAll(".li").forEach(li => li.onclick = () => {
+        document.getElementById("editor").value = tuts[+li.dataset.i][1];
+        this.updateEditor(); this.saveActiveDoc();
+        this.closeModal();
+        this.runCode();
+      });
+    });
+  }
+  showPlugins(){
+    this.showModal(this.t("plugins"), "Carpeta de plugins: localStorage\n(no hay archivos reales en el navegador)");
+  }
+  installPlugin(){
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".ez,.py";
+    inp.onchange = () => {
+      const f = inp.files[0]; if(!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        this.newDocument(f.name, false);
+        document.getElementById("editor").value = r.result;
+        this.updateEditor(); this.saveActiveDoc();
+      };
+      r.readAsText(f);
+    };
+    inp.click();
+  }
+  showAchievements(){
+    const a = this.interpreter.achievements;
+    this.showModal(this.t("achievements"), a.map(x => "🏆 " + x).join("\n") || "(—)");
+  }
+  showStats(){
+    const i = this.interpreter, s = this.sessionStats;
+    this.showModal(this.t("stats_title"),
+      `stmt: ${i.executed_lines} · t: ${i.execution_time.toFixed(3)}s\n` +
+      `vars: ${Object.keys(i.variables).length}\n` +
+      `funciones: ${Object.keys(i.functions).length}\n` +
+      `clases: ${Object.keys(i.classes).length}\n` +
+      `sprites: ${Object.keys(i.sprites).length}\n` +
+      `logros: ${i.achievements.length}\n` +
+      `────────────────────\n` +
+      `lang: ${this.state.lang} · mode: ${this.state.mode} · palette: ${this.state.palette}\n` +
+      `font: ${this.state.fontSize}px · tab: ${this.state.tabSize}\n` +
+      `────────────────────\n` +
+      `Sesión: runs=${s.runs} · t=${s.time.toFixed(2)}s · stmt=${s.stmts}`);
+  }
+  showAbout(){
+    this.showModal(this.t("about"),
+      `${APP_NAME} v${VERSION}\n\n${this.t("about_body")}\n\n` +
+      `Modo actual: ${MODES[this.state.mode].name}\n` +
+      `Paleta: ${this.state.palette.toUpperCase()}\n` +
+      `Idioma: ${this.state.lang.toUpperCase()}\n\n` +
+      `Atajos:\nF5 Ejecutar · F6 Selección · F11 Fullscreen · Esc Detener\n` +
+      `Ctrl+N/S/O/D/F/G/+/Shift+P`);
+  }
+
+  showCommandRef(){
+    const t = this.t.bind(this);
+    const body = `${t("ref_title")} — ${APP_NAME} v${VERSION}
+=====================================
+${t("ref_intro")}
+
+─── ${t("ref_control")} ───
+si:(cond) · sino: · fin_si
+mientras:(cond) · fin_mientras
+bucle:(n) · fin_bucle
+romper · continuar
+
+─── ${t("ref_funcs")} ───
+funcion:(nombre, args...) · retornar:(x) · fin_funcion
+llamar:(nombre, args...)
+
+─── ${t("ref_classes")} ───
+clase:(Nombre[, Padre]) · funcion:(método, args...) · fin_clase
+nuevo:(var, Clase) · llamar_metodo:(var, metodo, args...)
+propiedad:(nombre, valor)
+
+─── ${t("ref_tests")} ───
+test:("nombre") ... fin_test
+afirmar_igual:(a, b) · afirmar_verdad:(x) · afirmar_falso:(x)
+
+─── ${t("ref_events")} ───
+al:("evento", funcion) · emitir:("evento")
+cada:(id, ms, funcion) · cancelar_timer:(id)
+tecla_al:("a", evento, funcion) · raton_al:("click"|"move", funcion)
+
+─── ${t("ref_sprites")} ───
+sprite:(nombre, x, y, w, h, color)
+mover_sprite:(nombre, dx, dy) · colisiona:(var, s1, s2)
+
+─── ${t("ref_audio")} ───
+nota:(freq, ms) · musica:("do,re,mi") · beep:(freq, ms) · pitido
+
+─── ${t("ref_video")} ───
+idioma:("es"|"en"|"pt")
+modo_grafico:("8bit"|"16bit"|"normal")
+paleta:("nes"|"gameboy"|"cga"|"snes"|"vga"|"sinclair")
+
+─── ${t("ref_achievements")} ───
+logro:("nombre")
+
+─── ${t("ref_shortcuts")} ───
+F5 run · F6 selección · F11 fullscreen · Esc detener
+Ctrl+N nuevo · Ctrl+S guardar · Ctrl+O abrir · Ctrl+D duplicar
+Ctrl+/ comentar · Ctrl+G ir a línea · Ctrl+F buscar
+
+─── ${t("ref_toggle")} ───
+${t("ref_toggle_help")}
+
+─── ★ CADENAS AVANZADAS ──
+trim · trim_izq · trim_der · subcadena · empieza_con · termina_con
+buscar_pos · capitalizar · repetir_texto · formato
+
+─── ★ MATEMÁTICAS AVANZADAS ──
+tangente · arcoseno · arcocoseno · arcotangente · log_natural
+log_base10 · log_base · exponencial · factorial · gcd · lcm
+piso · techo · truncar · signo
+
+─── ★ RANDOM ──
+semilla · random_flotante · elegir · barajar · muestra
+
+─── ★ FECHA ──
+año · mes · dia · hora_num · minuto · segundo · timestamp
+formatear_fecha:(v, "%Y-%m-%d")
+
+─── ★ ARCHIVOS (VFS) ──
+crear_archivo · leer_archivo · existe_archivo · eliminar_archivo
+listar_archivos · copiar_archivo · mover_archivo · renombrar_archivo
+tamano_archivo · leer_lineas · escribir_lineas · agregar_archivo
+listar_extension · ruta_absoluta · ruta_unir · nombre_archivo
+carpeta_padre · extension_archivo
+
+─── ★ JSON ──
+json_dumps · json_loads · json_guardar · json_cargar · json_valido · json_obtener
+
+─── ★ LISTAS ──
+promedio_lista · unir_lista · filtro_pares · filtro_impares
+mapear_doble · indice_lista · contar_valor · aplanar · unico
+zip_lista · rango · eliminar_duplicados · contiene
+
+─── ★ BITS ──
+bit_and · bit_or · bit_xor · bit_not · shl · shr
+
+─── ★ REGEX ──
+regex_buscar · regex_reemplazar · regex_match · regex_split
+regex_grupos · regex_escapar
+
+─── ★ CSV ──
+csv_parsear · csv_generar
+
+─── ★ RED ──
+http_get · http_post · http_put · http_delete
+url_codificar · url_decodificar · resolver_dns
+
+─── ★ SISTEMA ──
+sistema · arquitectura · usuario · cwd · variable_entorno · proceso_id
+
+─── ★ SHELL ──
+ejecutar_shell · ejecutar_cmd
+
+─── LOGGING ──
+log_info · log_warn · log_error · logro
+
+─── CONTROL ──
+detener`;
+    this.showModal(this.t("cmd_ref"), body);
+  }
+
+  showExamples(){
+    const examples = {
+      "Hola mundo": 'mostrar "¡Hola, EasyScript!"',
+      "Multi-idioma": 'idioma:("en")\nmostrar "Hello!"\nidioma:("pt")\nmostrar "Olá!"\nidioma:("es")',
+      "Condicional": 'var:(n, 5)\nsi:(n > 3)\n    mostrar "Grande"\nsino:\n    mostrar "Pequeño"\nfin_si',
+      "Bucle": 'bucle:(5)\n    mostrar "Iter"\nfin_bucle',
+      "Función": 'funcion:(doble, x)\n    multiplicar:(r, x, 2)\n    retornar:(r)\nfin_funcion\nllamar:(doble, 21)\nmostrar r',
+      "Clase": 'clase:(Saludo)\n    funcion:(constructor)\n        propiedad:(veces, 0)\n    fin_funcion\n    funcion:(di, quien)\n        mostrar "Hola"\n    fin_funcion\nfin_clase\nnuevo:(g, Saludo)\nllamar_metodo:(g, di, "mundo")',
+      "Test": 'test:("suma")\n    sumar:(r, 2, 2)\n    afirmar_igual:(r, 4)\nfin_test',
+      "Modo 8-bit": 'modo_grafico:("8bit")\npaleta:("nes")\ncuadricula:(16)\ncolor:("rojo")\nrectangulo:(40,40,80,60)\ncirculo:(220,90,40,"azul")',
+      "Modo 16-bit": 'modo_grafico:("16bit")\npaleta:("snes")\ncirculo:(300,200,80,"dorado")\ntexto_canvas:(250,100,"SNES","blanco")',
+      "Sprite": 'sprite:(nave, 50, 50, 20, 20, "cian")\nmover_sprite:(nave, 60, 0)\nnota:(440, 100)',
+      "Hash+Base64": 'hash_sha256:(h, "hola")\nmostrar h\nbase64_cod:(b, "hola mundo")\nmostrar b',
+      "Música": 'musica:("do,re,mi,fa,sol,la,si")',
+      "★ Strings": 'trim:(t, "   hola mundo   ")\nmostrar t\nsubcadena:(s, "abcdefgh", 2, 5)\nmostrar s\ncapitalizar:(c, "david")\nmostrar c',
+      "★ Matemáticas": 'factorial:(f, 6)\nmostrar f\ngcd:(g, 48, 18)\nmostrar g\nlog_natural:(l, 2.718)\nmostrar l\nsigno:(s, -42)\nmostrar s',
+      "★ Listas": 'rango:(l, 1, 11)\nmostrar l\nfiltro_pares:(p, l)\nmostrar p\npromedio_lista:(avg, l)\nmostrar avg\nunico:(u, [1,1,2,3,2,4])\nmostrar u',
+      "★ JSON": 'json_dumps:(j, [10,20,30])\nmostrar j\njson_loads:(arr, j)\nmostrar arr',
+      "★ Bits": 'bit_and:(r, 12, 10)\nmostrar r\nbit_or:(o, 5, 3)\nmostrar o\nshl:(s, 1, 4)\nmostrar s',
+      "★ Regex": 'regex_buscar:(n, "abc123def456", "[0-9]+")\nmostrar n\nregex_reemplazar:(t, "[0-9]", "#", "a1b2c3")\nmostrar t',
+      "★ Fecha": 'año:(a)\nmostrar a\nformatear_fecha:(f, "%Y-%m-%d %H:%M")\nmostrar f',
+      "★ Archivos": 'crear_archivo:(prueba.txt, "contenido")\nleer_archivo:(c, prueba.txt)\nmostrar c',
+      "★ Sistema": 'sistema:(os_name)\nmostrar os_name\ncwd:(d)\nmostrar d',
+      "★ Lógica": 'y:(r1, 1, 1)\nmostrar r1\no:(r2, 0, 1)\nmostrar r2\nno:(r3, 0)\nmostrar r3',
+    };
+    this.showModal(this.t("examples"), "", () => {
+      const b = document.getElementById("modalBody");
+      b.innerHTML = `<div class="listbox">${Object.keys(examples).map(k => `<div class="li" data-k="${k.replace(/"/g,"&quot;")}">${k}</div>`).join("")}</div>`;
+      b.querySelectorAll(".li").forEach(li => li.onclick = () => {
+        const ed = document.getElementById("editor");
+        ed.value = examples[li.dataset.k];
+        this.updateEditor(); this.saveActiveDoc();
+        this.closeModal();
+        this.runCode();
+      });
+    });
+  }
+  showTemplates(){
+    const tpls = {
+      "Dibujo base": 'limpiar_pantalla\ncuadricula:(40)\ncolor:("azul")\n',
+      "Retro 8-bit": 'modo_grafico:("8bit")\npaleta:("nes")\ncuadricula:(16)\n',
+      "Retro 16-bit": 'modo_grafico:("16bit")\npaleta:("snes")\n',
+      "Juego base": 'modo_grafico:("8bit")\nsprite:(jugador, 100, 200, 20, 20, "verde")\n',
+    };
+    this.showModal(this.t("templates"), "", () => {
+      const b = document.getElementById("modalBody");
+      b.innerHTML = `<div class="listbox">${Object.keys(tpls).map(k => `<div class="li" data-k="${k}">${k}</div>`).join("")}</div>`;
+      b.querySelectorAll(".li").forEach(li => li.onclick = () => {
+        document.getElementById("editor").value = tpls[li.dataset.k];
+        this.updateEditor(); this.saveActiveDoc();
+        this.closeModal();
+      });
+    });
+  }
+  generateDocs(){
+    const code = document.getElementById("editor").value;
+    const items = [];
+    const reFn = /^\s*funcion:\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:,([^)]*))?\)/gm;
+    let m;
+    while((m = reFn.exec(code))) items.push(`Función: ${m[1]}(${(m[2]||"").trim()})`);
+    const reCls = /^\s*clase:\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)/gm;
+    while((m = reCls.exec(code))) items.push(`Clase: ${m[1]}`);
+    const html = `<html><head><meta charset="utf-8"><title>Docs</title></head><body><h1>${APP_NAME} v${VERSION}</h1><ul>${items.map(x=>`<li>${x}</li>`).join("")}</ul></body></html>`;
+    const blob = new Blob([html], {type:"text/html"});
+    this.downloadBlob(blob, "docs.html");
+    this.toast("📖 Documentación generada");
+  }
+
+  /* ---------- archivos ---------- */
+  openFile(){
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = ".ez,.txt";
+    inp.onchange = () => {
+      const f = inp.files[0]; if(!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        this.saveActiveDoc();
+        const d = new Document(f.name, false);
+        d.content = r.result;
+        d.path = f.name;
+        this.documents.push(d);
+        this.activeDocIdx = this.documents.length - 1;
+        this.buildTabs();
+        this.loadActiveDoc();
+      };
+      r.readAsText(f);
+    };
+    inp.click();
+  }
+  saveFile(){
+    this.saveActiveDoc();
+    const d = this.documents[this.activeDocIdx];
+    const blob = new Blob([d.content], {type:"text/plain"});
+    this.downloadBlob(blob, (d.title || "proyect").replace(/[^\w.-]/g,"_") + (d.title.endsWith(".ez")?"":".ez"));
+  }
+  saveFileAs(){ this.saveFile(); }
+  packProject(){
+    const code = document.getElementById("editor").value;
+    const meta = JSON.stringify({v:VERSION, lang:this.state.lang});
+    const content = "===META===\n" + meta + "\n===CODE===\n" + code;
+    const blob = new Blob([content], {type:"text/plain"});
+    this.downloadBlob(blob, "proyect.ezp");
+    this.toast("📦 Empaquetado");
+  }
+  unpackProject(){
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".ezp";
+    inp.onchange = () => {
+      const f = inp.files[0]; if(!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        const content = r.result;
+        const idx = content.indexOf("===CODE===");
+        const code = idx >= 0 ? content.slice(idx + 10).replace(/^\n/, "") : content;
+        this.newDocument(f.name, false);
+        document.getElementById("editor").value = code;
+        this.updateEditor(); this.saveActiveDoc();
+      };
+      r.readAsText(f);
+    };
+    inp.click();
+  }
+  exportHTML(){
+    const code = document.getElementById("editor").value.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>EasyScript</title>
+<style>body{background:#1e272e;color:#eee;font-family:Consolas,monospace;padding:20px}pre{background:#282c34;padding:16px;border-radius:8px;white-space:pre-wrap}</style>
+</head><body><h2>EasyScript Studio v${VERSION}</h2><pre>${code}</pre></body></html>`;
+    this.downloadBlob(new Blob([html], {type:"text/html"}), "easyscript.html");
+  }
+  downloadBlob(blob, filename){
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 100);
+  }
+
+  /* ---------- config / autosave ---------- */
+  _loadConfig(){
+    try{
+      const raw = localStorage.getItem(CONFIG_KEY);
+      if(raw){
+        const cfg = JSON.parse(raw);
+        this.state.lang = cfg.lang || this.state.lang;
+        this.state.mode = cfg.mode || this.state.mode;
+        this.state.palette = cfg.palette || this.state.palette;
+        this.state.fontSize = cfg.fontSize || this.state.fontSize;
+        this.state.fontFamily = cfg.fontFamily || this.state.fontFamily;
+        this.state.tabSize = cfg.tabSize || this.state.tabSize;
+        this.state.wordWrap = !!cfg.wordWrap;
+        this.state.showTimestamps = !!cfg.showTimestamps;
+        this.state.theme = cfg.theme || this.state.theme;
+        if(I18N.LANGS.includes(this.state.lang)) this.i18n.set_lang(this.state.lang);
+      }
+    }catch(e){}
+  }
+  _saveConfig(){
+    try{
+      localStorage.setItem(CONFIG_KEY, JSON.stringify({
+        lang:this.state.lang, mode:this.state.mode, palette:this.state.palette,
+        fontSize:this.state.fontSize, fontFamily:this.state.fontFamily,
+        tabSize:this.state.tabSize, wordWrap:this.state.wordWrap,
+        showTimestamps:this.state.showTimestamps, theme:this.state.theme,
+      }));
+    }catch(e){}
+  }
+  _scheduleAutosave(){
+    setInterval(()=>{
+      try{
+        this.saveActiveDoc();
+        this._saveConfig();
+      }catch(e){}
+    }, AUTOSAVE_MS);
+    window.addEventListener("beforeunload", ()=>{ this.saveActiveDoc(); this._saveConfig(); });
+  }
+
+  /* ---------- demo ---------- */
+  demoContent(){
+    return `// --- EASYSCRIPT v5.0.0 (+99 comandos) ---
+// Cambia idioma y modo gráfico desde los menús superiores
+// y verás cómo se retematiza TODO el IDE en vivo.
+
+// Matemáticas
+factorial:(f, 6)
+mostrar f
+gcd:(g, 48, 18)
+mostrar g
+log_natural:(l, 2.718)
+mostrar l
+
+// Strings avanzadas
+trim:(t, "   hola mundo   ")
+mostrar t
+subcadena:(s, "abcdefgh", 2, 5)
+mostrar s
+capitalizar:(c, "david")
+mostrar c
+
+// Listas
+rango:(nums, 1, 11)
+mostrar nums
+filtro_pares:(pares, nums)
+mostrar pares
+promedio_lista:(avg, nums)
+mostrar avg
+
+// Bits
+bit_and:(a, 12, 10)
+mostrar a
+shl:(sh, 1, 4)
+mostrar sh
+
+// JSON
+json_dumps:(j, [10, 20, 30])
+mostrar j
+json_loads:(arr, j)
+mostrar arr
+
+// Fecha
+formatear_fecha:(hoy, "%Y-%m-%d %H:%M")
+mostrar hoy
+
+// Modo gráfico retro + paleta
+modo_grafico:("8bit")
+paleta:("nes")
+cuadricula:(16)
+color:("rojo")
+rectangulo:(40, 40, 80, 60)
+circulo:(220, 90, 40, "azul")
+sprite:(nave, 300, 200, 20, 20, "cian")
+nota:(440, 100)
+musica:("do,mi,sol,do5")
+
+logro:("v5.0 - 99 comandos nuevos")`;
+  }
+  loadDemoIntoEditor(){
+    const ed = document.getElementById("editor");
+    ed.value = this.demoContent();
+    this.documents[0].content = ed.value;
+    this.updateEditor();
+  }
+}
+
+/* =========================================================
+   8) Arranque
+   ========================================================= */
+const app = new IDE();
+app.start();
+</script>
+</body>
+</html>
