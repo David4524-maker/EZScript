@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>EasyScript (EZScript) HTML</title>
+<title>EasyScript (EZScript) Studio v5.0.0</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden;font-family:Consolas,"Courier New",monospace;font-size:12px;background:#1e272e;color:#fff}
@@ -81,7 +81,7 @@ textarea,input{outline:none;border:none}
 #console .ach{color:#ffd700;font-weight:bold}
 #console .test_pass{color:#00b894}
 #console .test_fail{color:#d63031}
-#canvasWrap{flex:1;position:relative;overflow:hidden;background:#1e272e}
+#canvasWrap{flex:1;position:relative;overflow:hidden;background:#1e272e;min-height:80px}
 #canvas{position:absolute;top:0;left:0;width:100%;height:100%;display:block}
 #scanlines{position:absolute;inset:0;pointer-events:none;display:none;background:repeating-linear-gradient(to bottom,transparent 0,transparent 2px,rgba(0,0,0,.25) 2px,rgba(0,0,0,.25) 3px)}
 #canvasWrap.scan #scanlines{display:block}
@@ -191,7 +191,7 @@ body.present #main{top:0}
 <script>
 "use strict";
 /* =========================================================
-   EasyScript Studio HTML
+   EasyScript Studio v5.0.0 — Web
    ========================================================= */
 
 const APP_NAME = "EasyScript (EZScript) Studio";
@@ -199,13 +199,11 @@ const VERSION = "5.0.0";
 const DEFAULT_LANG = "es";
 const DEFAULT_MODE = "normal";
 const DEFAULT_PALETTE = "nes";
-const DEFAULT_FILENAME = "proyect.ez";
 const CONFIG_KEY = "ezscript_cfg_v5";
-const SNIPPETS_KEY = "ezscript_snippets_v5";
 const AUTOSAVE_MS = 60000;
 
 /* =========================================================
-   0) i18n — UI + CMD (idénticas al .py)
+   0) i18n
    ========================================================= */
 const I18N = {
   LANGS: ["es","en","pt"],
@@ -604,7 +602,7 @@ class I18n {
 }
 
 /* =========================================================
-   1) Paletas y modos gráficos (idénticos al .py)
+   1) Paletas y modos
    ========================================================= */
 const PALETTES = {
   nes:{negro:"#000000",blanco:"#fcfcfc",gris:"#bcbcbc",rojo:"#f83800",verde:"#00a800",azul:"#0058f8",amarillo:"#f8b800",naranja:"#f87858",morado:"#b800b8",cian:"#3cbcfc",rosa:"#f878f8",marron:"#503000",dorado:"#fce0a8",plateado:"#c4c4c4",violeta:"#9878f8"},
@@ -676,7 +674,7 @@ const COLOR_MAP = {
 };
 
 /* =========================================================
-   2) Señales internas
+   2) Señales
    ========================================================= */
 class ReturnSignal{ constructor(v){ this.value = v; } }
 class BreakSignal{}
@@ -698,7 +696,7 @@ class Sprite{
 class EZObject{ constructor(c){ this.cls_name=c; this.fields={}; this.methods={}; } }
 
 /* =========================================================
-   4) Parser de argumentos
+   4) parseArgs
    ========================================================= */
 function parseArgs(str){
   str = String(str||"").trim();
@@ -752,7 +750,6 @@ class Interpreter{
     this.test_results = [];
     this.achievements = [];
     this.vfs = {};
-    this.mode = "normal"; this.palette = "nes";
   }
 
   get_color(val){
@@ -886,6 +883,7 @@ class Interpreter{
     const total = this.test_results.length;
     const extra = total ? ` · Tests ${passed}/${total}` : "";
     this.log_success(`${this.execution_time.toFixed(3)}s · ${this.executed_lines} stmt · ${Object.keys(this.variables).length} vars${extra}`);
+    app.redrawCanvas();
     app.onExecutionFinished(this.execution_time, this.executed_lines);
   }
 
@@ -1037,14 +1035,14 @@ class Interpreter{
 
     /* VARIABLES */
     if(line.startsWith("var:")){ const a = parseArgs(line.slice(4)); v[a[0].trim()] = this.eval_expr(a[1]); return; }
-    if(line.startsWith("incrementar:")){ const a = parseArgs(line.slice(12)); v[a[0].trim()] = (parseFloat(v[a[0].trim()])||0) + (parseFloat(this.eval_expr(a[1]))||1); return; }
-    if(line.startsWith("decrementar:")){ const a = parseArgs(line.slice(12)); v[a[0].trim()] = (parseFloat(v[a[0].trim()])||0) - (parseFloat(this.eval_expr(a[1]))||1); return; }
+    if(line.startsWith("incrementar:")){ const a = parseArgs(line.slice(12)); const k=a[0].trim(); v[k] = (parseFloat(v[k])||0) + (parseFloat(this.eval_expr(a[1]))||1); return; }
+    if(line.startsWith("decrementar:")){ const a = parseArgs(line.slice(12)); const k=a[0].trim(); v[k] = (parseFloat(v[k])||0) - (parseFloat(this.eval_expr(a[1]))||1); return; }
     if(line.startsWith("entrada:")){ const a = parseArgs(line.slice(8)); v[a[0].trim()] = window.prompt(String(this.eval_expr(a[1]))) || ""; return; }
     if(line.startsWith("asignar:")){ const a = parseArgs(line.slice(8)); v[a[0].trim()] = this.eval_expr(a[1]); return; }
 
     /* CADENAS */
-    if(line.startsWith("mayusculas:")){ const a = parseArgs(line.slice(11)); v[a[0].trim()] = String(v[a[0].trim()]||"").toUpperCase(); return; }
-    if(line.startsWith("minusculas:")){ const a = parseArgs(line.slice(11)); v[a[0].trim()] = String(v[a[0].trim()]||"").toLowerCase(); return; }
+    if(line.startsWith("mayusculas:")){ const a = parseArgs(line.slice(11)); const k=a[0].trim(); v[k] = String(v[k]||"").toUpperCase(); return; }
+    if(line.startsWith("minusculas:")){ const a = parseArgs(line.slice(11)); const k=a[0].trim(); v[k] = String(v[k]||"").toLowerCase(); return; }
     if(line.startsWith("longitud:")){ const a = parseArgs(line.slice(9)); this.log(`📏 Longitud: ${String(this.eval_expr(a[0])).length}`, "info"); return; }
     if(line.startsWith("reemplazar:")){ const a = parseArgs(line.slice(11)); const k=a[0].trim(); v[k] = String(v[k]||"").split(String(this.eval_expr(a[1]))).join(String(this.eval_expr(a[2]))); return; }
     if(line.startsWith("concatenar:") || line.startsWith("unir:")){
@@ -1245,7 +1243,7 @@ class Interpreter{
     }
     if(line.startsWith("contar:")){ const a = parseArgs(line.slice(7)); this.log(`🔢 Contar: ${String(this.eval_expr(a[0])).length}`, "info"); return; }
 
-    /* DIBUJO */
+    /* DIBUJO — usamos app.pushDraw para ver el dibujo al momento */
     if(line.startsWith("color:")){ const a = parseArgs(line.slice(6)); this.current_draw_color = this.get_color(this.eval_expr(a[0])); return; }
     if(line.startsWith("color_canvas:")){ const a = parseArgs(line.slice(13)); this.current_draw_color = this.get_color(this.eval_expr(a[0])); return; }
     if(line.startsWith("grosor_linea:")){ const a = parseArgs(line.slice(13)); this.current_line_width = parseInt(this.eval_expr(a[0]))||1; return; }
@@ -1254,35 +1252,35 @@ class Interpreter{
       const [x1,y1,x2,y2] = a.slice(0,4).map(x=>parseFloat(this.eval_expr(x))||0);
       const c = a[4] ? this.get_color(this.eval_expr(a[4])) : this.current_draw_color;
       const w = this.current_line_width;
-      app.drawCommands.push(ctx => { ctx.strokeStyle=c; ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); });
+      app.pushDraw(ctx => { ctx.strokeStyle=c; ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); });
       return;
     }
     if(line.startsWith("rectangulo:")){
       const a = parseArgs(line.slice(11));
       const [x,y,w,h] = a.slice(0,4).map(x=>parseFloat(this.eval_expr(x))||0);
       const c = a[4] ? this.get_color(this.eval_expr(a[4])) : this.current_draw_color;
-      app.drawCommands.push(ctx => { ctx.fillStyle=c; ctx.fillRect(x,y,w,h); });
+      app.pushDraw(ctx => { ctx.fillStyle=c; ctx.fillRect(x,y,w,h); });
       return;
     }
     if(line.startsWith("circulo:")){
       const a = parseArgs(line.slice(8));
       const [x,y,r] = a.slice(0,3).map(x=>parseFloat(this.eval_expr(x))||0);
       const c = a[3] ? this.get_color(this.eval_expr(a[3])) : this.current_draw_color;
-      app.drawCommands.push(ctx => { ctx.fillStyle=c; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); });
+      app.pushDraw(ctx => { ctx.fillStyle=c; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); });
       return;
     }
     if(line.startsWith("ovalo:")){
       const a = parseArgs(line.slice(6));
       const [x,y,w,h] = a.slice(0,4).map(x=>parseFloat(this.eval_expr(x))||0);
       const c = a[4] ? this.get_color(this.eval_expr(a[4])) : this.current_draw_color;
-      app.drawCommands.push(ctx => { ctx.fillStyle=c; ctx.beginPath(); ctx.ellipse(x+w/2,y+h/2,w/2,h/2,0,0,Math.PI*2); ctx.fill(); });
+      app.pushDraw(ctx => { ctx.fillStyle=c; ctx.beginPath(); ctx.ellipse(x+w/2,y+h/2,w/2,h/2,0,0,Math.PI*2); ctx.fill(); });
       return;
     }
     if(line.startsWith("triangulo:")){
       const a = parseArgs(line.slice(10));
       const p = a.slice(0,6).map(x=>parseFloat(this.eval_expr(x))||0);
       const c = a[6] ? this.get_color(this.eval_expr(a[6])) : this.current_draw_color;
-      app.drawCommands.push(ctx => {
+      app.pushDraw(ctx => {
         ctx.fillStyle=c; ctx.beginPath();
         ctx.moveTo(p[0],p[1]); ctx.lineTo(p[2],p[3]); ctx.lineTo(p[4],p[5]);
         ctx.closePath(); ctx.fill();
@@ -1295,7 +1293,7 @@ class Interpreter{
       const y = parseFloat(this.eval_expr(a[1]))||0;
       const txt = String(this.eval_expr(a[2]));
       const c = a[3] ? this.get_color(this.eval_expr(a[3])) : this.current_draw_color;
-      app.drawCommands.push(ctx => { ctx.fillStyle=c; ctx.font="bold 14px "+MODES[app.state.mode].font_family; ctx.fillText(txt,x,y); });
+      app.pushDraw(ctx => { ctx.fillStyle=c; ctx.font="bold 14px "+MODES[app.state.mode].font_family; ctx.fillText(txt,x,y); });
       return;
     }
     if(line === "borrar_canvas"){ app.clearCanvas(); return; }
@@ -1303,8 +1301,9 @@ class Interpreter{
       const a = parseArgs(line.slice(11));
       const step = parseInt(this.eval_expr(a[0]))||40;
       const gc = quantize("#34495e", app.state.mode, app.state.palette);
-      const W = app.canvasEl.clientWidth, H = app.canvasEl.clientHeight;
-      app.drawCommands.push(ctx => {
+      const W = app.canvasEl.clientWidth || 400;
+      const H = app.canvasEl.clientHeight || 300;
+      app.pushDraw(ctx => {
         ctx.strokeStyle = gc; ctx.lineWidth = 1; ctx.setLineDash([2,3]);
         for(let x=0;x<W;x+=step){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
         for(let y=0;y<H;y+=step){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
@@ -1325,7 +1324,7 @@ class Interpreter{
       const y = parseFloat(this.eval_expr(a[1]))||0;
       const c = a[2] ? this.get_color(this.eval_expr(a[2])) : this.current_draw_color;
       const s = MODES[app.state.mode].pixel_scale;
-      app.drawCommands.push(ctx => { ctx.fillStyle=c; ctx.fillRect(x,y,s,s); });
+      app.pushDraw(ctx => { ctx.fillStyle=c; ctx.fillRect(x,y,s,s); });
       return;
     }
 
@@ -1453,7 +1452,7 @@ class Interpreter{
       return;
     }
 
-    /* HASH / ENCODE — usamos SubtleCrypto de forma síncrona aproximada */
+    /* HASH / ENCODE */
     if(line.startsWith("hash_md5:") || line.startsWith("hash_sha1:") || line.startsWith("hash_sha256:")){
       const base = line.startsWith("hash_md5:") ? 9 : (line.startsWith("hash_sha1:") ? 10 : 12);
       const algo = line.startsWith("hash_md5:") ? "md5" : (line.startsWith("hash_sha1:") ? "sha1" : "sha256");
@@ -1560,7 +1559,7 @@ class Interpreter{
       const c = a[5] ? this.get_color(this.eval_expr(a[5])) : "#ffffff";
       const sp = new Sprite(name,x,y,w,h,c);
       this.sprites[name] = sp;
-      app.drawCommands.push(ctx => { ctx.fillStyle=c; ctx.fillRect(x,y,w,h); });
+      app.pushDraw(ctx => { ctx.fillStyle=c; ctx.fillRect(x,y,w,h); });
       return;
     }
     if(line.startsWith("mover_sprite:")){
@@ -1570,7 +1569,7 @@ class Interpreter{
       const dy = parseFloat(this.eval_expr(a[2]))||0;
       const s = this.sprites[name];
       if(s){ s.x += dx; s.y += dy;
-        app.drawCommands.push(ctx => { ctx.fillStyle=s.color; ctx.fillRect(s.x,s.y,s.w,s.h); });
+        app.pushDraw(ctx => { ctx.fillStyle=s.color; ctx.fillRect(s.x,s.y,s.w,s.h); });
       }
       return;
     }
@@ -1655,7 +1654,7 @@ class Interpreter{
 }
 
 /* =========================================================
-   6) Documento (pestaña)
+   6) Documento
    ========================================================= */
 class Document{
   constructor(title="Sin título", untitled=true){
@@ -1707,7 +1706,6 @@ class IDE{
       "Evento": 'al:("click", mi_handler)',
     };
     this.canvasKeyBindings = {};
-    this.canvasMouseBindings = {};
     this.macroEvents = [];
     this.macroRecording = false;
   }
@@ -1731,6 +1729,10 @@ class IDE{
     this._scheduleAutosave();
     this.log("EasyScript Studio v5.0.0 — Web Edition", "success");
     this.log("Pulsa F5 o el botón ▶ Ejecutar para empezar.", "dim");
+
+    // Fuerza resize cuando el layout ya está listo
+    requestAnimationFrame(() => { this.resizeCanvas(); this.redrawCanvas(); });
+    setTimeout(() => { this.resizeCanvas(); this.redrawCanvas(); }, 150);
   }
 
   /* ---------- menú ---------- */
@@ -1911,7 +1913,6 @@ class IDE{
     btns.forEach(b => { const e = document.getElementById(b.id); if(e) e.onclick = b.fn; });
   }
 
-  /* ---------- pestañas ---------- */
   buildTabs(){
     const el = document.getElementById("tabsBar");
     el.innerHTML = this.documents.map((d,i) =>
@@ -1940,13 +1941,12 @@ class IDE{
   loadActiveDoc(){
     const d = this.documents[this.activeDocIdx];
     if(!d) return;
-    const ed = document.getElementById("editor");
-    ed.value = d.content;
+    document.getElementById("editor").value = d.content;
     this.updateEditor();
   }
   saveActiveDoc(){
     const d = this.documents[this.activeDocIdx];
-    if(d){ d.content = document.getElementById("editor").value; }
+    if(d) d.content = document.getElementById("editor").value;
   }
   newDocument(title, withDemo){
     this.saveActiveDoc();
@@ -2057,7 +2057,6 @@ class IDE{
     });
   }
 
-  /* ---------- modo gráfico ---------- */
   applyMode(mode){
     this.state.mode = mode;
     const cfg = MODES[mode];
@@ -2144,14 +2143,17 @@ class IDE{
     else this.toast(this.t("language_changed") + " " + code.toUpperCase());
   }
 
-  /* ---------- canvas ---------- */
+  /* ---------- canvas (ARREGLADO) ---------- */
   resizeCanvas(){
+    const parent = this.canvasEl.parentElement;
+    let W = parent.clientWidth;
+    let H = parent.clientHeight;
+    if(!W || W < 10) W = 400;
+    if(!H || H < 10) H = 300;
     const dpr = window.devicePixelRatio || 1;
-    const W = this.canvasEl.parentElement.clientWidth;
-    const H = this.canvasEl.parentElement.clientHeight;
-    this.canvasEl.width = W * dpr;
-    this.canvasEl.height = H * dpr;
-    this.canvasEl.style.width = W + "px";
+    this.canvasEl.width  = Math.floor(W * dpr);
+    this.canvasEl.height = Math.floor(H * dpr);
+    this.canvasEl.style.width  = W + "px";
     this.canvasEl.style.height = H + "px";
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.ctx.fillStyle = MODES[this.state.mode].bg;
@@ -2159,15 +2161,24 @@ class IDE{
   }
   clearCanvas(){
     this.drawCommands = [];
-    const W = this.canvasEl.clientWidth, H = this.canvasEl.clientHeight;
+    const W = this.canvasEl.clientWidth  || 400;
+    const H = this.canvasEl.clientHeight || 300;
     this.ctx.fillStyle = MODES[this.state.mode].bg;
     this.ctx.fillRect(0, 0, W, H);
   }
   redrawCanvas(){
-    const W = this.canvasEl.clientWidth, H = this.canvasEl.clientHeight;
+    const W = this.canvasEl.clientWidth  || 400;
+    const H = this.canvasEl.clientHeight || 300;
     this.ctx.fillStyle = MODES[this.state.mode].bg;
     this.ctx.fillRect(0, 0, W, H);
-    for(const cmd of this.drawCommands){ try{ cmd(this.ctx); }catch(e){} }
+    for(const cmd of this.drawCommands){
+      try{ cmd(this.ctx); }catch(e){ console.error(e); }
+    }
+  }
+  // ★ NUEVO: dibuja YA y también guarda en la cola para redraw
+  pushDraw(cmd){
+    this.drawCommands.push(cmd);
+    try{ cmd(this.ctx); }catch(e){ console.error(e); }
   }
   bindCanvasKey(key, handler){
     this.canvasKeyBindings[key] = handler;
@@ -2301,7 +2312,7 @@ class IDE{
     if(bar){ bar.style.width = p + "%"; }
   }
 
-  /* ---------- helpers de edición ---------- */
+  /* ---------- helpers edición ---------- */
   duplicateLine(){
     const ed = document.getElementById("editor");
     const pos = ed.selectionStart;
@@ -2915,7 +2926,7 @@ detener`;
     this.toast("📖 Documentación generada");
   }
 
-  /* ---------- archivos ---------- */
+  /* ---------- archivos (ARREGLADO: guardar .ez) ---------- */
   openFile(){
     const inp = document.createElement("input");
     inp.type = "file"; inp.accept = ".ez,.txt";
@@ -2936,11 +2947,45 @@ detener`;
     };
     inp.click();
   }
-  saveFile(){
+  async saveFile(){
     this.saveActiveDoc();
     const d = this.documents[this.activeDocIdx];
-    const blob = new Blob([d.content], {type:"text/plain"});
-    this.downloadBlob(blob, (d.title || "proyect").replace(/[^\w.-]/g,"_") + (d.title.endsWith(".ez")?"":".ez"));
+    if(!d) return;
+
+    // Nombre seguro con extensión .ez garantizada
+    let base = (d.title || "proyect").trim();
+    if(!base) base = "proyect";
+    base = base.replace(/\.ez$/i, "");
+    base = base.normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+               .replace(/[^\w.-]+/g, "_")
+               .replace(/^_+|_+$/g, "") || "proyect";
+    const filename = base + ".ez";
+    const blob = new Blob([d.content], {type:"text/plain;charset=utf-8"});
+
+    // 1) File System Access API (diálogo real "Guardar como…")
+    if(window.showSaveFilePicker){
+      try{
+        const handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{ description: "EasyScript", accept: { "text/plain": [".ez"] } }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        d.path = handle.name || filename;
+        d.untitled = false;
+        d.modified = false;
+        this.toast("💾 Guardado: " + d.path);
+        return;
+      }catch(err){
+        if(err && err.name === "AbortError") return;
+        // fallback al método clásico
+      }
+    }
+
+    // 2) Fallback clásico (descarga)
+    this.downloadBlob(blob, filename);
+    this.toast("💾 Descargado: " + filename);
   }
   saveFileAs(){ this.saveFile(); }
   packProject(){
@@ -2975,12 +3020,20 @@ detener`;
 </head><body><h2>EasyScript Studio v${VERSION}</h2><pre>${code}</pre></body></html>`;
     this.downloadBlob(new Blob([html], {type:"text/html"}), "easyscript.html");
   }
+  // ★ ARREGLADO: insertar en DOM y revocar tras 2s
   downloadBlob(blob, filename){
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
+    a.href = url;
     a.download = filename;
+    a.rel = "noopener";
+    a.style.display = "none";
+    document.body.appendChild(a);
     a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href), 100);
+    setTimeout(()=>{
+      try{ document.body.removeChild(a); }catch(e){}
+      URL.revokeObjectURL(url);
+    }, 2000);
   }
 
   /* ---------- config / autosave ---------- */
@@ -3014,15 +3067,11 @@ detener`;
   }
   _scheduleAutosave(){
     setInterval(()=>{
-      try{
-        this.saveActiveDoc();
-        this._saveConfig();
-      }catch(e){}
+      try{ this.saveActiveDoc(); this._saveConfig(); }catch(e){}
     }, AUTOSAVE_MS);
     window.addEventListener("beforeunload", ()=>{ this.saveActiveDoc(); this._saveConfig(); });
   }
 
-  /* ---------- demo ---------- */
   demoContent(){
     return `// --- EASYSCRIPT v5.0.0 (+99 comandos) ---
 // Cambia idioma y modo gráfico desde los menús superiores
