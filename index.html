@@ -58,7 +58,7 @@ textarea,input{outline:none;border:none}
 #highlight{color:#fff;background:#282c34;pointer-events:none;z-index:1}
 #editor{color:transparent;caret-color:#fff;background:transparent;z-index:2}
 #editor::selection{background:rgba(255,255,255,.25);color:transparent}
-#highlight .cm{color:#7f848e;font-style:italic}
+#highlight .cm{color:#7f848e}
 #highlight .st{color:#98c379}
 #highlight .nm{color:#d19a66}
 #highlight .kw{color:#c678dd;font-weight:bold}
@@ -2062,16 +2062,17 @@ class IDE{
     document.getElementById("countText").textContent = `${lines.length} L · ${text.length} c`;
   }
 
+  // ★ FIX: sin comillas en class=... para que el regex de strings no las matchee
   syntaxHighlight(code){
     let h = code.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-    h = h.replace(/(\/\/[^\n]*)/g, '<span class="cm">$1</span>');
-    h = h.replace(/(&quot;[^&]*?&quot;|"[^"\n]*"|'[^'\n]*')/g, '<span class="st">$1</span>');
-    h = h.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="nm">$1</span>');
+    h = h.replace(/(\/\/[^\n]*)/g, '<span class=cm>$1</span>');
+    h = h.replace(/(&quot;[^&]*?&quot;|"[^"\n]*"|'[^'\n]*')/g, '<span class=st>$1</span>');
+    h = h.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class=nm>$1</span>');
     h = h.replace(/^(\s*)([A-Za-z_ñÑáéíóúÁÉÍÓÚ][A-Za-z0-9_ñÑáéíóúÁÉÍÓÚ]*)(\s*:)/gm,
-      '$1<span class="kw">$2</span>$3');
+      '$1<span class=kw>$2</span>$3');
     for(const c in COLOR_MAP){
       const re = new RegExp("\\b("+c+")\\b","g");
-      h = h.replace(re, '<span class="co">$1</span>');
+      h = h.replace(re, '<span class=co>$1</span>');
     }
     return h;
   }
