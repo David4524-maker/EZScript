@@ -1038,9 +1038,12 @@ class Interpreter{
   async _execute_line(line, line_num){
     const v = this.variables;
 
-    /* SALIDA */
+    /* SALIDA — FIX: antes usaba split(" ", 2) y solo tomaba la 1ª palabra */
     if(line.startsWith("mostrar ") || line.startsWith("print ")){
-      this.log(this.eval_expr(line.split(" ",2)[1]), "info"); return;
+      const sep = line.indexOf(" ");
+      const arg = line.slice(sep + 1);
+      this.log(this.eval_expr(arg), "info");
+      return;
     }
     if(line === "limpiar_pantalla"){ app.clearConsole(); app.clearCanvas(); return; }
     if(line === "limpiar_consola"){ app.clearConsole(); return; }
