@@ -1,0 +1,2465 @@
+# -*- coding: utf-8 -*-
+"""
+EZScripting (EasyScripting) v5.0 - motor headless de EZScript
+=============================================================
+Intérprete multilenguaje (ES/EN/PT) SIN Tkinter: úsalo desde Python, la terminal o un servidor.
+
+    from ezscripting import EZScripting
+    ez = EZScripting(lang="es")
+    print(ez.run('var:(x, 5)\nmostrar x'))
+    open("dibujo.svg", "w").write(ez.canvas.to_svg())
+
+Terminal:  python ezscripting.py programa.ez [--lang en] [--svg salida.svg] [--timers 3]
+           python ezscripting.py            (REPL interactivo)
+"""
+import re, platform, json, random, math, time, webbrowser, os, sys, threading, hashlib, base64, csv, io
+import urllib.request, urllib.parse, socket, subprocess, shutil, statistics, heapq, argparse
+import uuid as uuidlib
+from datetime import datetime, timedelta
+
+__version__ = "5.0.0"
+
+class tk:                      # shim mínimo: el motor sólo necesita tk.END
+    END = "end"
+
+class messagebox:              # diálogos -> terminal
+    showinfo = staticmethod(lambda t, m="": print(f"[{t}] {m}"))
+    showwarning = showerror = showinfo
+    askyesno = staticmethod(lambda t, m="": input(f"[{t}] {m} (s/n) ").strip().lower() in ("s", "y", "si", "sí", "yes"))
+
+
+# ---------- Consola y canvas headless ----------
+class HeadlessConsole:
+    def __init__(self, echo=False): self.buf, self.echo = [], echo
+    def insert(self, idx, text, *tags):
+        self.buf.append(text)
+        if self.echo: sys.stdout.write(text); sys.stdout.flush()
+    def delete(self, *a): self.buf.clear()
+    def index(self, i): return f"{''.join(self.buf).count(chr(10)) + 1}.0"
+    def see(self, *a): pass
+    def update(self): pass
+    def tag_config(self, *a, **k): pass
+    def window_create(self, *a, **k): pass
+    def get_text(self): return "".join(self.buf)
+
+class HeadlessCanvas:
+    def __init__(self, w=400, h=400): self.w, self.h, self.bg, self.items, self._id = w, h, "#1e272e", [], 0
+    def config(self, **k): self.bg = k.get("bg", self.bg)
+    configure = config
+    def _add(self, kind, a, k):
+        self._id += 1; self.items.append(dict(id=self._id, kind=kind, args=a, kw=k)); return self._id
+    def create_line(self, *a, **k): return self._add("line", a, k)
+    def create_rectangle(self, *a, **k): return self._add("rect", a, k)
+    def create_oval(self, *a, **k): return self._add("oval", a, k)
+    def create_polygon(self, *a, **k): return self._add("poly", a, k)
+    def create_text(self, *a, **k): return self._add("text", a, k)
+    def delete(self, what):
+        if what == "all": self.items.clear()
+        else: self.items = [i for i in self.items if i["id"] != what and what not in i["kw"].get("tags", ())]
+    def winfo_width(self): return self.w
+    def winfo_height(self): return self.h
+    def to_svg(self):
+        o = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{self.w}" height="{self.h}"><rect width="100%" height="100%" fill="{self.bg}"/>']
+        for i in self.items:
+            a, k = i["args"], i["kw"]; f = k.get("fill", "none"); K = i["kind"]
+            if K == "line": o.append(f'<line x1="{a[0]}" y1="{a[1]}" x2="{a[2]}" y2="{a[3]}" stroke="{f}" stroke-width="{k.get("width", 1)}"/>')
+            elif K == "rect": o.append(f'<rect x="{a[0]}" y="{a[1]}" width="{a[2]-a[0]}" height="{a[3]-a[1]}" fill="{f}"/>')
+            elif K == "oval": o.append(f'<ellipse cx="{(a[0]+a[2])/2}" cy="{(a[1]+a[3])/2}" rx="{abs(a[2]-a[0])/2}" ry="{abs(a[3]-a[1])/2}" fill="{f}"/>')
+            elif K == "poly":
+                p = a[0] if isinstance(a[0], (list, tuple)) else a
+                o.append('<polygon points="' + " ".join(f"{p[j]},{p[j+1]}" for j in range(0, len(p) - 1, 2)) + f'" fill="{f}"/>')
+            elif K == "text": o.append(f'<text x="{a[0]}" y="{a[1]}" fill="{f}" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold">{k.get("text", "")}</text>')
+        return "\n".join(o) + "</svg>"
+
+class _Root:                   # planificador mínimo (reemplaza root.after de Tk)
+    def __init__(self): self.q, self.n, self.clip = [], 0, ""
+    def after(self, ms, fn):
+        self.n += 1; heapq.heappush(self.q, (time.time() + ms / 1000, self.n, fn)); return self.n
+    def bell(self): sys.stdout.write("\a")
+    def clipboard_clear(self): self.clip = ""
+    def clipboard_append(self, t): self.clip += t
+    def pump(self, seconds=2.0):
+        end = time.time() + seconds
+        while self.q and self.q[0][0] <= end:
+            t, _, fn = heapq.heappop(self.q)
+            time.sleep(max(0, t - time.time())); fn()
+
+class HeadlessApp:
+    def __init__(self): self.root, self.keys, self.mouse = _Root(), {}, {}
+    def ask_input(self, p): return input(p + " ")
+    def highlight_error_line(self, ln): pass
+    def apply_video_mode(self, m, from_script=False): pass
+    def apply_palette(self, p, from_script=False): pass
+    def change_language(self, c, from_script=False): pass
+    def on_execution_finished(self, secs, lines): pass
+    def bind_canvas_key(self, k, h): self.keys[k] = h
+    def bind_canvas_mouse(self, e, h): self.mouse[e] = h
+    def tray_notify(self, t, b=""): print(f"[*] {t}: {b}")
+    def _on_debug_pause(self, ln, interp): interp.continue_debug()
+
+
+# ============ NÚCLEO (extraído de EasyScript Studio v5.0.0) ============
+class I18n:
+    LANGS = ("es", "en", "pt")
+
+    UI = {
+        "es": {
+            "file":"Archivo","edit":"Editar","view":"Ver","run":"Ejecutar","help":"Ayuda",
+            "language":"Idioma","video_mode":"Modo gráfico",
+            "new":"Nuevo","new_tab":"Nueva pestaña","open":"Abrir…","save":"Guardar",
+            "save_as":"Guardar como…","close_tab":"Cerrar pestaña","exit":"Salir",
+            "recent":"Recientes","console_save":"Guardar consola…","canvas_save":"Guardar canvas (PS)…",
+            "pack":"Empaquetar proyecto (.ezp)","unpack":"Importar .ezp","export_html":"Exportar a HTML",
+            "undo":"Deshacer","redo":"Rehacer",
+            "find":"Buscar/Reemplazar","search_all":"Buscar en todas las pestañas",
+            "goto":"Ir a línea…","dup":"Duplicar línea","comment":"Comentar/Descomentar",
+            "indent":"Indentar","unindent":"Desindentar",
+            "format":"Formatear código","rename_var":"Renombrar variable…",
+            "extract_fn":"Extraer a función…","cmd_palette":"Paleta de comandos",
+            "autocomplete":"Autocompletar","inspect":"Inspeccionar variables",
+            "export_vars":"Exportar variables (JSON)","import_vars":"Importar variables (JSON)",
+            "font_up":"Aumentar fuente","font_down":"Disminuir fuente","font_reset":"Restablecer fuente",
+            "font_pick":"Cambiar fuente…","tab_size":"Tamaño de tab…",
+            "wrap":"Ajustar texto (Wrap)","whitespace":"Mostrar espacios",
+            "timestamps":"Timestamps en consola","theme":"Tema claro/oscuro",
+            "fullscreen":"Pantalla completa","presentation":"Modo presentación",
+            "bookmarks":"Marcadores","toggle_bm":"Alternar marcador",
+            "next_bm":"Siguiente marcador","prev_bm":"Marcador anterior",
+            "run_all":"Ejecutar todo","run_sel":"Ejecutar selección","run_cursor":"Ejecutar desde cursor",
+            "validate":"Validar sintaxis","stop":"Detener ejecución",
+            "debugger":"Depurador","watch":"Watch","callstack":"Call stack",
+            "profile":"Perfilado","profile_chart":"Gráfica",
+            "macro_rec":"Grabar macro","macro_play":"Reproducir macro",
+            "test_runner":"Ejecutar tests",
+            "clear_console":"Limpiar consola","clear_canvas":"Limpiar canvas",
+            "copy_console":"Copiar consola","history":"Historial de ejecuciones",
+            "diff":"Comparar versiones","commit":"Commit local",
+            "cmd_ref":"Referencia de comandos","examples":"Biblioteca de ejemplos",
+            "templates":"Plantillas rápidas","snippet_mgr":"Gestor de snippets",
+            "tutorials":"Tutoriales interactivos","doc_gen":"Generar documentación HTML",
+            "plugins":"Plugins","install_plugin":"Instalar plugin…",
+            "achievements":"Logros","stats":"Estadísticas","about":"Acerca de…",
+            "ready":"Listo.","running":"Ejecutando…","stopping":"Deteniendo…",
+            "validate_ok":"✅ Sintaxis correcta.","vars":"Variables","stats_title":"Estadísticas",
+            "about_body":"EasyScript v5.0.0 — autosuficiente.\nCambio de idioma total en caliente.",
+            "language_changed":"Idioma:","lang_reset":"↩ Idioma restablecido:",
+            "mode_reset":"↩ Modo restablecido:","palette_reset":"↩ Paleta restablecida:",
+            "mode_set":"Modo:","palette_set":"Paleta:",
+            "sidebar":"Explorador","project":"Proyecto","refresh":"Recargar",
+            "new_tab_title":"Sin título",
+            "btn_new":"Nuevo","btn_open":"Abrir","btn_save":"Guardar","btn_run":"Ejecutar",
+            "btn_stop":"Detener","btn_console":"Consola","btn_canvas":"Canvas",
+            "btn_find":"Buscar","btn_help":"Ayuda","btn_debug":"Depurar","btn_step":"Paso",
+            "btn_format":"Formatear","btn_test":"Tests","btn_snippets":"Snippets",
+            "dlg_search":"Buscar:","dlg_replace":"Reemplazar:","dlg_regex":"Regex",
+            "dlg_find_btn":"Buscar","dlg_replace_all":"Reemplazar todo",
+            "dlg_watch_add":"Añadir","dlg_close":"Cerrar",
+            "msg_select_code":"Selecciona código primero.",
+            "msg_confirm_close":"El documento tiene cambios sin guardar. ¿Cerrar?",
+            "msg_already_running":"Ya hay una ejecución en curso.",
+            "msg_extract_hint":"Selecciona el bloque a extraer.",
+            "dlg_tab_size":"Tamaño de tabulación (2-8):","dlg_font_prompt":"Nombre de la fuente:",
+            "dlg_goto":"Ir a línea","dlg_goto_num":"Número:",
+            "dlg_rename_old":"Variable actual:","dlg_rename_new":"Nuevo nombre:",
+            "dlg_extract_name":"Nombre de la función:",
+            "search_placeholder":"Texto:",
+            "results_title":"Resultados","no_matches":"Sin coincidencias.",
+            "ref_title":"REFERENCIA DE COMANDOS",
+            "ref_intro":"Comandos funcionan en ES / EN / PT. Ej: mostrar / show / exibir.",
+            "ref_control":"CONTROL DE FLUJO","ref_funcs":"FUNCIONES",
+            "ref_classes":"CLASES Y OBJETOS","ref_tests":"TESTS",
+            "ref_events":"EVENTOS Y TIMERS","ref_sprites":"SPRITES Y JUEGO",
+            "ref_modules":"MÓDULOS","ref_stdlib":"LIBRERÍA ESTÁNDAR",
+            "ref_audio":"AUDIO","ref_video":"IDIOMA Y VIDEO",
+            "ref_achievements":"LOGROS","ref_shortcuts":"ATAJOS DEL IDE",
+            "ref_toggle":"COMPORTAMIENTO TOGGLE",
+            "ref_toggle_help":
+                "Pulsa el idioma YA activo (≠ Español) → vuelve a Español.\n"
+                "Pulsa el modo YA activo (≠ Normal) → vuelve a Normal.\n"
+                "Pulsa la paleta YA activa (≠ NES) → vuelve a NES.",
+        },
+        "en": {
+            "file":"File","edit":"Edit","view":"View","run":"Run","help":"Help",
+            "language":"Language","video_mode":"Video mode",
+            "new":"New","new_tab":"New tab","open":"Open…","save":"Save","save_as":"Save as…",
+            "close_tab":"Close tab","exit":"Exit","recent":"Recent",
+            "console_save":"Save console…","canvas_save":"Save canvas (PS)…",
+            "pack":"Pack project (.ezp)","unpack":"Import .ezp","export_html":"Export to HTML",
+            "undo":"Undo","redo":"Redo",
+            "find":"Find/Replace","search_all":"Search in all tabs",
+            "goto":"Go to line…","dup":"Duplicate line","comment":"Toggle comment",
+            "indent":"Indent","unindent":"Unindent",
+            "format":"Format code","rename_var":"Rename variable…",
+            "extract_fn":"Extract to function…","cmd_palette":"Command palette",
+            "autocomplete":"Autocomplete","inspect":"Inspect variables",
+            "export_vars":"Export variables (JSON)","import_vars":"Import variables (JSON)",
+            "font_up":"Increase font","font_down":"Decrease font","font_reset":"Reset font",
+            "font_pick":"Change font…","tab_size":"Tab size…",
+            "wrap":"Word wrap","whitespace":"Show whitespace",
+            "timestamps":"Console timestamps","theme":"Light/dark theme",
+            "fullscreen":"Fullscreen","presentation":"Presentation mode",
+            "bookmarks":"Bookmarks","toggle_bm":"Toggle bookmark",
+            "next_bm":"Next bookmark","prev_bm":"Previous bookmark",
+            "run_all":"Run all","run_sel":"Run selection","run_cursor":"Run from cursor",
+            "validate":"Validate syntax","stop":"Stop execution",
+            "debugger":"Debugger","watch":"Watch","callstack":"Call stack",
+            "profile":"Profiling","profile_chart":"Chart",
+            "macro_rec":"Record macro","macro_play":"Play macro",
+            "test_runner":"Run tests",
+            "clear_console":"Clear console","clear_canvas":"Clear canvas",
+            "copy_console":"Copy console","history":"Execution history",
+            "diff":"Compare versions","commit":"Local commit",
+            "cmd_ref":"Command reference","examples":"Examples library",
+            "templates":"Quick templates","snippet_mgr":"Snippet manager",
+            "tutorials":"Interactive tutorials","doc_gen":"Generate HTML docs",
+            "plugins":"Plugins","install_plugin":"Install plugin…",
+            "achievements":"Achievements","stats":"Statistics","about":"About…",
+            "ready":"Ready.","running":"Running…","stopping":"Stopping…",
+            "validate_ok":"✅ Syntax OK.","vars":"Variables","stats_title":"Statistics",
+            "about_body":"EasyScript v5.0.0 — self-contained.\nFull live language switch.",
+            "language_changed":"Language:","lang_reset":"↩ Language reset:",
+            "mode_reset":"↩ Mode reset:","palette_reset":"↩ Palette reset:",
+            "mode_set":"Mode:","palette_set":"Palette:",
+            "sidebar":"Explorer","project":"Project","refresh":"Refresh",
+            "new_tab_title":"Untitled",
+            "btn_new":"New","btn_open":"Open","btn_save":"Save","btn_run":"Run",
+            "btn_stop":"Stop","btn_console":"Console","btn_canvas":"Canvas",
+            "btn_find":"Find","btn_help":"Help","btn_debug":"Debug","btn_step":"Step",
+            "btn_format":"Format","btn_test":"Tests","btn_snippets":"Snippets",
+            "dlg_search":"Find:","dlg_replace":"Replace:","dlg_regex":"Regex",
+            "dlg_find_btn":"Find","dlg_replace_all":"Replace all",
+            "dlg_watch_add":"Add","dlg_close":"Close",
+            "msg_select_code":"Select code first.",
+            "msg_confirm_close":"The document has unsaved changes. Close?",
+            "msg_already_running":"An execution is already running.",
+            "msg_extract_hint":"Select the block to extract.",
+            "dlg_tab_size":"Tab size (2-8):","dlg_font_prompt":"Font name:",
+            "dlg_goto":"Go to line","dlg_goto_num":"Number:",
+            "dlg_rename_old":"Current variable:","dlg_rename_new":"New name:",
+            "dlg_extract_name":"Function name:",
+            "search_placeholder":"Text:",
+            "results_title":"Results","no_matches":"No matches.",
+            "ref_title":"COMMAND REFERENCE",
+            "ref_intro":"Commands work in EN / ES / PT. Ex: show / mostrar / exibir.",
+            "ref_control":"CONTROL FLOW","ref_funcs":"FUNCTIONS",
+            "ref_classes":"CLASSES AND OBJECTS","ref_tests":"TESTS",
+            "ref_events":"EVENTS AND TIMERS","ref_sprites":"SPRITES AND GAME",
+            "ref_modules":"MODULES","ref_stdlib":"STANDARD LIBRARY",
+            "ref_audio":"AUDIO","ref_video":"LANGUAGE AND VIDEO",
+            "ref_achievements":"ACHIEVEMENTS","ref_shortcuts":"IDE SHORTCUTS",
+            "ref_toggle":"TOGGLE BEHAVIOR",
+            "ref_toggle_help":
+                "Click the language already active (≠ Spanish) → returns to Spanish.\n"
+                "Click the mode already active (≠ Normal) → returns to Normal.\n"
+                "Click the palette already active (≠ NES) → returns to NES.",
+        },
+        "pt": {
+            "file":"Arquivo","edit":"Editar","view":"Ver","run":"Executar","help":"Ajuda",
+            "language":"Idioma","video_mode":"Modo gráfico",
+            "new":"Novo","new_tab":"Nova aba","open":"Abrir…","save":"Salvar","save_as":"Salvar como…",
+            "close_tab":"Fechar aba","exit":"Sair","recent":"Recentes",
+            "console_save":"Salvar console…","canvas_save":"Salvar canvas (PS)…",
+            "pack":"Empacotar projeto (.ezp)","unpack":"Importar .ezp","export_html":"Exportar para HTML",
+            "undo":"Desfazer","redo":"Refazer",
+            "find":"Localizar/Substituir","search_all":"Buscar em todas as abas",
+            "goto":"Ir para linha…","dup":"Duplicar linha","comment":"Comentar/Descomentar",
+            "indent":"Indentar","unindent":"Desindentar",
+            "format":"Formatar código","rename_var":"Renomear variável…",
+            "extract_fn":"Extrair para função…","cmd_palette":"Paleta de comandos",
+            "autocomplete":"Autocompletar","inspect":"Inspecionar variáveis",
+            "export_vars":"Exportar variáveis (JSON)","import_vars":"Importar variáveis (JSON)",
+            "font_up":"Aumentar fonte","font_down":"Diminuir fonte","font_reset":"Redefinir fonte",
+            "font_pick":"Trocar fonte…","tab_size":"Tamanho do tab…",
+            "wrap":"Quebra de linha","whitespace":"Mostrar espaços",
+            "timestamps":"Timestamps no console","theme":"Tema claro/escuro",
+            "fullscreen":"Tela cheia","presentation":"Modo apresentação",
+            "bookmarks":"Marcadores","toggle_bm":"Alternar marcador",
+            "next_bm":"Próximo marcador","prev_bm":"Marcador anterior",
+            "run_all":"Executar tudo","run_sel":"Executar seleção","run_cursor":"Executar do cursor",
+            "validate":"Validar sintaxe","stop":"Parar execução",
+            "debugger":"Depurador","watch":"Watch","callstack":"Call stack",
+            "profile":"Perfil","profile_chart":"Gráfico",
+            "macro_rec":"Gravar macro","macro_play":"Reproduzir macro",
+            "test_runner":"Executar testes",
+            "clear_console":"Limpar console","clear_canvas":"Limpar canvas",
+            "copy_console":"Copiar console","history":"Histórico de execuções",
+            "diff":"Comparar versões","commit":"Commit local",
+            "cmd_ref":"Referência de comandos","examples":"Biblioteca de exemplos",
+            "templates":"Modelos rápidos","snippet_mgr":"Gerenciador de snippets",
+            "tutorials":"Tutoriais interativos","doc_gen":"Gerar documentação HTML",
+            "plugins":"Plugins","install_plugin":"Instalar plugin…",
+            "achievements":"Conquistas","stats":"Estatísticas","about":"Sobre…",
+            "ready":"Pronto.","running":"Executando…","stopping":"Parando…",
+            "validate_ok":"✅ Sintaxe OK.","vars":"Variáveis","stats_title":"Estatísticas",
+            "about_body":"EasyScript v5.0.0 — autossuficiente.\nTroca total de idioma ao vivo.",
+            "language_changed":"Idioma:","lang_reset":"↩ Idioma restabelecido:",
+            "mode_reset":"↩ Modo restabelecido:","palette_reset":"↩ Paleta restabelecida:",
+            "mode_set":"Modo:","palette_set":"Paleta:",
+            "sidebar":"Explorador","project":"Projeto","refresh":"Recarregar",
+            "new_tab_title":"Sem título",
+            "btn_new":"Novo","btn_open":"Abrir","btn_save":"Salvar","btn_run":"Executar",
+            "btn_stop":"Parar","btn_console":"Console","btn_canvas":"Canvas",
+            "btn_find":"Localizar","btn_help":"Ajuda","btn_debug":"Depurar","btn_step":"Passo",
+            "btn_format":"Formatar","btn_test":"Testes","btn_snippets":"Snippets",
+            "dlg_search":"Localizar:","dlg_replace":"Substituir:","dlg_regex":"Regex",
+            "dlg_find_btn":"Localizar","dlg_replace_all":"Substituir tudo",
+            "dlg_watch_add":"Adicionar","dlg_close":"Fechar",
+            "msg_select_code":"Selecione o código primeiro.",
+            "msg_confirm_close":"O documento tem alterações não salvas. Fechar?",
+            "msg_already_running":"Já existe uma execução em andamento.",
+            "msg_extract_hint":"Selecione o bloco a extrair.",
+            "dlg_tab_size":"Tamanho do tab (2-8):","dlg_font_prompt":"Nome da fonte:",
+            "dlg_goto":"Ir para linha","dlg_goto_num":"Número:",
+            "dlg_rename_old":"Variável atual:","dlg_rename_new":"Novo nome:",
+            "dlg_extract_name":"Nome da função:",
+            "search_placeholder":"Texto:",
+            "results_title":"Resultados","no_matches":"Sem correspondências.",
+            "ref_title":"REFERÊNCIA DE COMANDOS",
+            "ref_intro":"Comandos funcionam em PT / ES / EN. Ex: exibir / mostrar / show.",
+            "ref_control":"CONTROLE DE FLUXO","ref_funcs":"FUNÇÕES",
+            "ref_classes":"CLASSES E OBJETOS","ref_tests":"TESTES",
+            "ref_events":"EVENTOS E TIMERS","ref_sprites":"SPRITES E JOGO",
+            "ref_modules":"MÓDULOS","ref_stdlib":"BIBLIOTECA PADRÃO",
+            "ref_audio":"ÁUDIO","ref_video":"IDIOMA E VÍDEO",
+            "ref_achievements":"CONQUISTAS","ref_shortcuts":"ATALHOS DA IDE",
+            "ref_toggle":"COMPORTAMENTO TOGGLE",
+            "ref_toggle_help":
+                "Clique no idioma já ativo (≠ Espanhol) → volta ao Espanhol.\n"
+                "Clique no modo já ativo (≠ Normal) → volta ao Normal.\n"
+                "Clique na paleta já ativa (≠ NES) → volta à NES.",
+        },
+    }
+
+    # ----------------------------------------------
+    # DICCIONARIO DE COMANDOS (ES base + alias EN/PT)
+    # ----------------------------------------------
+    CMD = {
+        # --- SALIDA ---
+        "mostrar":{"en":"show","pt":"exibir"},
+        "print":{"en":"print","pt":"imprimir"},
+        "limpiar_pantalla":{"en":"clear_screen","pt":"limpar_tela"},
+        "limpiar_consola":{"en":"clear_console","pt":"limpar_console"},
+        # --- VARIABLES / ENTRADA ---
+        "var":{"en":"let","pt":"var"},
+        "incrementar":{"en":"increment","pt":"incrementar"},
+        "decrementar":{"en":"decrement","pt":"decrementar"},
+        "entrada":{"en":"input","pt":"entrada"},
+        "asignar":{"en":"set","pt":"definir"},
+        # --- CADENAS (10 nuevos) ---
+        "mayusculas":{"en":"uppercase","pt":"maiusculas"},
+        "minusculas":{"en":"lowercase","pt":"minusculas"},
+        "longitud":{"en":"length","pt":"comprimento"},
+        "reemplazar":{"en":"replace","pt":"substituir"},
+        "concatenar":{"en":"concat","pt":"concatenar"},
+        "dividir_texto":{"en":"split_text","pt":"dividir_texto"},
+        "indice":{"en":"index","pt":"indice"},
+        "invertir":{"en":"reverse","pt":"inverter"},
+        "unir":{"en":"join","pt":"unir"},
+        "trim":{"en":"trim","pt":"trim"},
+        "trim_izq":{"en":"ltrim","pt":"ltrim"},
+        "trim_der":{"en":"rtrim","pt":"rtrim"},
+        "subcadena":{"en":"substring","pt":"subcadeia"},
+        "empieza_con":{"en":"starts_with","pt":"comeca_com"},
+        "termina_con":{"en":"ends_with","pt":"termina_com"},
+        "buscar_pos":{"en":"find_pos","pt":"buscar_pos"},
+        "capitalizar":{"en":"capitalize","pt":"capitalizar"},
+        "repetir_texto":{"en":"repeat_text","pt":"repetir_texto"},
+        "formato":{"en":"format_text","pt":"formatar_texto"},
+        # --- CONVERSIÓN ---
+        "tipo_dato":{"en":"data_type","pt":"tipo_dado"},
+        "a_numero":{"en":"to_number","pt":"para_numero"},
+        "a_texto":{"en":"to_text","pt":"para_texto"},
+        "a_lista":{"en":"to_list","pt":"para_lista"},
+        # --- LISTAS ---
+        "ordenar":{"en":"sort","pt":"ordenar"},
+        "contar":{"en":"count","pt":"contar"},
+        "lista":{"en":"list","pt":"lista"},
+        "agregar":{"en":"append","pt":"adicionar"},
+        "quitar":{"en":"remove","pt":"remover"},
+        "obtener":{"en":"get","pt":"obter"},
+        "longitud_lista":{"en":"list_len","pt":"comprimento_lista"},
+        "suma_lista":{"en":"list_sum","pt":"soma_lista"},
+        "max_lista":{"en":"list_max","pt":"max_lista"},
+        "min_lista":{"en":"list_min","pt":"min_lista"},
+        "promedio_lista":{"en":"list_avg","pt":"media_lista"},
+        "unir_lista":{"en":"list_join","pt":"juntar_lista"},
+        "filtro_pares":{"en":"filter_even","pt":"filtro_pares"},
+        "filtro_impares":{"en":"filter_odd","pt":"filtro_impares"},
+        "mapear_doble":{"en":"map_double","pt":"mapear_duplo"},
+        "indice_lista":{"en":"list_index","pt":"indice_lista"},
+        "contar_valor":{"en":"count_value","pt":"contar_valor"},
+        "aplanar":{"en":"flatten","pt":"achatar"},
+        "unico":{"en":"unique","pt":"unico"},
+        "zip_lista":{"en":"zip_list","pt":"zip_lista"},
+        "rango":{"en":"range_list","pt":"intervalo"},
+        "eliminar_duplicados":{"en":"dedupe","pt":"remover_duplicados"},
+        "contiene":{"en":"contains","pt":"contem"},
+        # --- MATEMÁTICAS ---
+        "random":{"en":"random","pt":"aleatorio"},
+        "raiz":{"en":"sqrt","pt":"raiz"},
+        "potencia":{"en":"power","pt":"potencia"},
+        "redondear":{"en":"round","pt":"arredondar"},
+        "absoluto":{"en":"abs","pt":"absoluto"},
+        "seno":{"en":"sin","pt":"seno"},
+        "coseno":{"en":"cos","pt":"cosseno"},
+        "maximo":{"en":"max","pt":"maximo"},
+        "minimo":{"en":"min","pt":"minimo"},
+        "pi":{"en":"pi","pt":"pi"},
+        "tangente":{"en":"tan","pt":"tangente"},
+        "arcoseno":{"en":"asin","pt":"arcoseno"},
+        "arcocoseno":{"en":"acos","pt":"arcocosseno"},
+        "arcotangente":{"en":"atan","pt":"arcotangente"},
+        "log_natural":{"en":"ln","pt":"log_natural"},
+        "log_base10":{"en":"log10","pt":"log_base10"},
+        "log_base":{"en":"log_base","pt":"log_base"},
+        "exponencial":{"en":"exp","pt":"exponencial"},
+        "factorial":{"en":"fact","pt":"fatorial"},
+        "gcd":{"en":"gcd","pt":"mdc"},
+        "lcm":{"en":"lcm","pt":"mmc"},
+        "piso":{"en":"floor","pt":"piso"},
+        "techo":{"en":"ceil","pt":"teto"},
+        "truncar":{"en":"trunc","pt":"truncar"},
+        "signo":{"en":"sign","pt":"sinal"},
+        "sumar":{"en":"add","pt":"somar"},
+        "restar":{"en":"subtract","pt":"subtrair"},
+        "multiplicar":{"en":"multiply","pt":"multiplicar"},
+        "dividir":{"en":"divide","pt":"dividir"},
+        "modulo":{"en":"modulo","pt":"modulo"},
+        # --- RANDOM ---
+        "semilla":{"en":"seed","pt":"semente"},
+        "random_flotante":{"en":"random_float","pt":"aleatorio_flutuante"},
+        "elegir":{"en":"choice","pt":"escolher"},
+        "barajar":{"en":"shuffle","pt":"embaralhar"},
+        "muestra":{"en":"sample","pt":"amostra"},
+        # --- LÓGICA ---
+        "igual_a":{"en":"equals","pt":"igual_a"},
+        "mayor_que":{"en":"greater_than","pt":"maior_que"},
+        "menor_que":{"en":"less_than","pt":"menor_que"},
+        "y":{"en":"and","pt":"e"},
+        "o":{"en":"or","pt":"ou"},
+        "no":{"en":"not","pt":"nao"},
+        # --- BITS ---
+        "bit_and":{"en":"bit_and","pt":"bit_and"},
+        "bit_or":{"en":"bit_or","pt":"bit_or"},
+        "bit_xor":{"en":"bit_xor","pt":"bit_xor"},
+        "bit_not":{"en":"bit_not","pt":"bit_not"},
+        "shl":{"en":"shift_left","pt":"deslocar_esq"},
+        "shr":{"en":"shift_right","pt":"deslocar_dir"},
+        # --- FECHA/HORA ---
+        "fecha":{"en":"date","pt":"data"},
+        "hora":{"en":"time","pt":"hora"},
+        "hora_actual":{"en":"current_time","pt":"hora_atual"},
+        "fecha_hora":{"en":"datetime","pt":"data_hora"},
+        "año":{"en":"year","pt":"ano"},
+        "mes":{"en":"month","pt":"mes"},
+        "dia":{"en":"day","pt":"dia"},
+        "hora_num":{"en":"hour","pt":"hora_num"},
+        "minuto":{"en":"minute","pt":"minuto"},
+        "segundo":{"en":"second","pt":"segundo"},
+        "timestamp":{"en":"timestamp","pt":"timestamp"},
+        "formatear_fecha":{"en":"format_date","pt":"formatar_data"},
+        "esperar":{"en":"wait","pt":"esperar"},
+        # --- SISTEMA ---
+        "alerta":{"en":"alert","pt":"alerta"},
+        "confirmar":{"en":"confirm","pt":"confirmar"},
+        "abrir_url":{"en":"open_url","pt":"abrir_url"},
+        "copiar":{"en":"copy","pt":"copiar"},
+        "notificacion":{"en":"notify","pt":"notificacao"},
+        "pitido":{"en":"beep","pt":"apito"},
+        "beep":{"en":"tone","pt":"tom"},
+        "esperar_tecla":{"en":"wait_key","pt":"esperar_tecla"},
+        "ejecutar_cmd":{"en":"run_cmd","pt":"executar_cmd"},
+        "ejecutar_shell":{"en":"shell","pt":"shell"},
+        "detener":{"en":"stop","pt":"parar"},
+        "sistema":{"en":"os_name","pt":"sistema"},
+        "arquitectura":{"en":"arch","pt":"arquitetura"},
+        "usuario":{"en":"user","pt":"usuario"},
+        "cwd":{"en":"cwd","pt":"cwd"},
+        "variable_entorno":{"en":"env_var","pt":"variavel_ambiente"},
+        "proceso_id":{"en":"pid","pt":"pid"},
+        # --- ARCHIVOS ---
+        "crear_archivo":{"en":"create_file","pt":"criar_arquivo"},
+        "leer_archivo":{"en":"read_file","pt":"ler_arquivo"},
+        "existe_archivo":{"en":"file_exists","pt":"arquivo_existe"},
+        "eliminar_archivo":{"en":"delete_file","pt":"deletar_arquivo"},
+        "listar_archivos":{"en":"list_files","pt":"listar_arquivos"},
+        "copiar_archivo":{"en":"copy_file","pt":"copiar_arquivo"},
+        "mover_archivo":{"en":"move_file","pt":"mover_arquivo"},
+        "renombrar_archivo":{"en":"rename_file","pt":"renomear_arquivo"},
+        "tamano_archivo":{"en":"file_size","pt":"tamanho_arquivo"},
+        "crear_carpeta":{"en":"mkdir","pt":"criar_pasta"},
+        "eliminar_carpeta":{"en":"rmdir","pt":"deletar_pasta"},
+        "leer_lineas":{"en":"read_lines","pt":"ler_linhas"},
+        "escribir_lineas":{"en":"write_lines","pt":"escrever_linhas"},
+        "agregar_archivo":{"en":"append_file","pt":"anexar_arquivo"},
+        "listar_extension":{"en":"list_by_ext","pt":"listar_extensao"},
+        "ruta_absoluta":{"en":"abspath","pt":"caminho_absoluto"},
+        "ruta_unir":{"en":"path_join","pt":"unir_caminho"},
+        "nombre_archivo":{"en":"basename","pt":"nome_arquivo"},
+        "carpeta_padre":{"en":"dirname","pt":"pasta_pai"},
+        "extension_archivo":{"en":"file_ext","pt":"extensao_arquivo"},
+        # --- JSON ---
+        "json_dumps":{"en":"json_encode","pt":"json_codificar"},
+        "json_loads":{"en":"json_decode","pt":"json_decodificar"},
+        "json_guardar":{"en":"json_save","pt":"json_salvar"},
+        "json_cargar":{"en":"json_load","pt":"json_carregar"},
+        "json_valido":{"en":"json_valid","pt":"json_valido"},
+        "json_obtener":{"en":"json_get","pt":"json_obter"},
+        # --- HASH / ENCODE ---
+        "hash_md5":{"en":"md5","pt":"md5"},
+        "hash_sha256":{"en":"sha256","pt":"sha256"},
+        "hash_sha1":{"en":"sha1","pt":"sha1"},
+        "base64_cod":{"en":"b64_encode","pt":"b64_codificar"},
+        "base64_dec":{"en":"b64_decode","pt":"b64_decodificar"},
+        "uuid":{"en":"uuid","pt":"uuid"},
+        # --- REGEX ---
+        "regex_buscar":{"en":"regex_find","pt":"regex_buscar"},
+        "regex_reemplazar":{"en":"regex_replace","pt":"regex_substituir"},
+        "regex_match":{"en":"regex_match","pt":"regex_match"},
+        "regex_split":{"en":"regex_split","pt":"regex_dividir"},
+        "regex_grupos":{"en":"regex_groups","pt":"regex_grupos"},
+        "regex_escapar":{"en":"regex_escape","pt":"regex_escapar"},
+        # --- CSV ---
+        "csv_parsear":{"en":"csv_parse","pt":"csv_parsear"},
+        "csv_generar":{"en":"csv_build","pt":"csv_gerar"},
+        # --- RED ---
+        "http_get":{"en":"http_get","pt":"http_get"},
+        "http_post":{"en":"http_post","pt":"http_post"},
+        "http_put":{"en":"http_put","pt":"http_put"},
+        "http_delete":{"en":"http_delete","pt":"http_delete"},
+        "url_codificar":{"en":"url_encode","pt":"url_codificar"},
+        "url_decodificar":{"en":"url_decode","pt":"url_decodificar"},
+        "resolver_dns":{"en":"dns_resolve","pt":"resolver_dns"},
+        # --- CONTROL DE FLUJO ---
+        "si":{"en":"if","pt":"se"},
+        "sino":{"en":"else","pt":"senao"},
+        "fin_si":{"en":"end_if","pt":"fim_se"},
+        "mientras":{"en":"while","pt":"enquanto"},
+        "fin_mientras":{"en":"end_while","pt":"fim_enquanto"},
+        "bucle":{"en":"loop","pt":"loop"},
+        "fin_bucle":{"en":"end_loop","pt":"fim_loop"},
+        "romper":{"en":"break","pt":"quebrar"},
+        "continuar":{"en":"continue","pt":"continuar"},
+        # --- FUNCIONES / CLASES ---
+        "funcion":{"en":"function","pt":"funcao"},
+        "fin_funcion":{"en":"end_function","pt":"fim_funcao"},
+        "llamar":{"en":"call","pt":"chamar"},
+        "retornar":{"en":"return","pt":"retornar"},
+        "clase":{"en":"class","pt":"classe"},
+        "fin_clase":{"en":"end_class","pt":"fim_classe"},
+        "hereda":{"en":"inherits","pt":"herda"},
+        "nuevo":{"en":"new","pt":"novo"},
+        "llamar_metodo":{"en":"method","pt":"metodo"},
+        "propiedad":{"en":"property","pt":"propriedade"},
+        # --- EVENTOS / TIMERS ---
+        "emitir":{"en":"emit","pt":"emitir"},
+        "al":{"en":"on","pt":"ao"},
+        "cada":{"en":"every","pt":"cada"},
+        "cancelar_timer":{"en":"cancel_timer","pt":"cancelar_timer"},
+        "animar":{"en":"animate","pt":"animar"},
+        "tecla_al":{"en":"on_key","pt":"tecla_ao"},
+        "raton_al":{"en":"on_mouse","pt":"rato_ao"},
+        # --- SPRITES / JUEGO ---
+        "sprite":{"en":"sprite","pt":"sprite"},
+        "mover_sprite":{"en":"move_sprite","pt":"mover_sprite"},
+        "dibujar_sprite":{"en":"draw_sprite","pt":"desenhar_sprite"},
+        "colisiona":{"en":"collides","pt":"colide"},
+        "gravedad":{"en":"gravity","pt":"gravidade"},
+        # --- AUDIO ---
+        "musica":{"en":"music","pt":"musica"},
+        "nota":{"en":"note","pt":"nota"},
+        # --- TESTS ---
+        "afirmar_igual":{"en":"assert_equal","pt":"afirmar_igual"},
+        "afirmar_verdad":{"en":"assert_true","pt":"afirmar_verdade"},
+        "afirmar_falso":{"en":"assert_false","pt":"afirmar_falso"},
+        "test":{"en":"test","pt":"teste"},
+        "fin_test":{"en":"end_test","pt":"fim_teste"},
+        # --- LOGROS ---
+        "logro":{"en":"achievement","pt":"conquista"},
+        # --- MÓDULOS ---
+        "importar":{"en":"import","pt":"importar"},
+        # --- LOGGING ---
+        "log_info":{"en":"log_info","pt":"log_info"},
+        "log_warn":{"en":"log_warn","pt":"log_warn"},
+        "log_error":{"en":"log_error","pt":"log_error"},
+        # --- DIBUJO ---
+        "color":{"en":"color","pt":"cor"},
+        "linea":{"en":"line","pt":"linha"},
+        "conectar":{"en":"connect","pt":"conectar"},
+        "rectangulo":{"en":"rectangle","pt":"retangulo"},
+        "circulo":{"en":"circle","pt":"circulo"},
+        "ovalo":{"en":"oval","pt":"oval"},
+        "triangulo":{"en":"triangle","pt":"triangulo"},
+        "poligono":{"en":"polygon","pt":"poligono"},
+        "arco":{"en":"arc","pt":"arco"},
+        "texto_canvas":{"en":"canvas_text","pt":"texto_canvas"},
+        "color_canvas":{"en":"canvas_color","pt":"cor_canvas"},
+        "grosor_linea":{"en":"line_width","pt":"espessura_linha"},
+        "borrar_canvas":{"en":"clear_canvas","pt":"apagar_canvas"},
+        "cuadricula":{"en":"grid","pt":"grade"},
+        "rgb":{"en":"rgb","pt":"rgb"},
+        "pixel":{"en":"pixel","pt":"pixel"},
+        # --- VIDEO / IDIOMA ---
+        "modo_grafico":{"en":"video_mode","pt":"modo_grafico"},
+        "paleta":{"en":"palette","pt":"paleta"},
+        "idioma":{"en":"language","pt":"idioma"},
+    }
+
+    def __init__(self, lang="es"):
+        self.lang = lang
+        self._rebuild_reverse()
+
+    def set_lang(self, lang):
+        if lang in self.LANGS:
+            self.lang = lang
+            self._rebuild_reverse()
+
+    def _rebuild_reverse(self):
+        self.reverse = {}
+        for canonical, aliases in self.CMD.items():
+            self.reverse[canonical] = canonical
+            if self.lang != "es":
+                a = aliases.get(self.lang)
+                if a: self.reverse[a] = canonical
+
+    def t(self, key):
+        return self.UI.get(self.lang, self.UI["es"]).get(key, key)
+
+    def translate_line(self, line):
+        m = re.match(r'^(\s*)([A-Za-z_ñÑáéíóúÁÉÍÓÚ][A-Za-z0-9_ñÑáéíóúÁÉÍÓÚ]*)(\s*[: ])(.*)$', line)
+        if not m: return line
+        indent, cmd, sep, rest = m.groups()
+        canonical = self.reverse.get(cmd)
+        if canonical and canonical != cmd:
+            return f"{indent}{canonical}{sep}{rest}"
+        return line
+
+    def command_list(self):
+        out = set()
+        for canonical, aliases in self.CMD.items():
+            out.add(canonical + ":")
+            a = aliases.get(self.lang)
+            if a: out.add(a + ":")
+        return sorted(out)
+
+
+# ==========================================================
+# 1) Modos gráficos retro (CON RETEMATIZACIÓN TOTAL)
+# ==========================================================
+class RetroVideoMode:
+    PALETTES = {
+        "nes": {"negro":"#000000","blanco":"#fcfcfc","gris":"#bcbcbc","rojo":"#f83800",
+                "verde":"#00a800","azul":"#0058f8","amarillo":"#f8b800","naranja":"#f87858",
+                "morado":"#b800b8","cian":"#3cbcfc","rosa":"#f878f8","marron":"#503000",
+                "dorado":"#fce0a8","plateado":"#c4c4c4","violeta":"#9878f8"},
+        "gameboy": {"negro":"#0f380f","blanco":"#9bbc0f","gris":"#8bac0f","rojo":"#306230",
+                    "verde":"#8bac0f","azul":"#0f380f","amarillo":"#9bbc0f","naranja":"#306230",
+                    "morado":"#306230","cian":"#8bac0f","rosa":"#9bbc0f","marron":"#0f380f",
+                    "dorado":"#9bbc0f","plateado":"#8bac0f","violeta":"#306230"},
+        "cga": {"negro":"#000000","blanco":"#ffffff","gris":"#aaaaaa","rojo":"#ff55ff",
+                "verde":"#55ffff","azul":"#5555ff","amarillo":"#ffff55","naranja":"#ff5555",
+                "morado":"#ff55ff","cian":"#55ffff","rosa":"#ff55ff","marron":"#aa5500",
+                "dorado":"#ffff55","plateado":"#aaaaaa","violeta":"#ff55ff"},
+        "snes": {"negro":"#000000","blanco":"#f8f8f8","gris":"#a0a0a0","rojo":"#e02020",
+                 "verde":"#20b020","azul":"#2040d0","amarillo":"#f0d020","naranja":"#f07020",
+                 "morado":"#a020a0","cian":"#20c0c0","rosa":"#f090a0","marron":"#704020",
+                 "dorado":"#e0c060","plateado":"#c8c8c8","violeta":"#8050c0"},
+        "vga": {"negro":"#000000","blanco":"#ffffff","gris":"#a0a0a0","rojo":"#a80000",
+                "verde":"#00a800","azul":"#0000a8","amarillo":"#a8a800","naranja":"#a85400",
+                "morado":"#a800a8","cian":"#00a8a8","rosa":"#ff80c0","marron":"#804000",
+                "dorado":"#ffd700","plateado":"#c0c0c0","violeta":"#8000ff"},
+        "sinclair": {"negro":"#000000","blanco":"#ffffff","gris":"#c0c0c0","rojo":"#d00000",
+                     "verde":"#00d000","azul":"#0000d0","amarillo":"#d0d000","naranja":"#d06000",
+                     "morado":"#d000d0","cian":"#00d0d0","rosa":"#d08080","marron":"#804000",
+                     "dorado":"#d0c000","plateado":"#c0c0c0","violeta":"#8000d0"},
+    }
+    # Cada modo define TODO: fondo, editor, consola, sidebar, toolbar, statusbar...
+    MODES = {
+        "normal": {
+            "name":"Normal (24-bit)","pixel_scale":1,"scanlines":False,
+            "bg":"#1e272e","fg":"#ffffff",
+            "editor_bg":"#282c34","editor_fg":"#ffffff",
+            "editor_ln_bg":"#282c34","editor_ln_fg":"#7f8c8d",
+            "console_bg":"#1e272e","console_fg":"#ffffff",
+            "sidebar_bg":"#2c3e50","sidebar_fg":"#ffffff","sidebar_hdr":"#1f2a35",
+            "toolbar_bg":"#2c3e50","toolbar_fg":"#ffffff",
+            "statusbar_bg":"#2c3e50","statusbar_fg":"#ffffff",
+            "font_family":"Consolas","font_size":11,
+        },
+        "8bit": {
+            "name":"8-bit (256 col.)","pixel_scale":2,"scanlines":True,
+            "bg":"#101010","fg":"#fcfcfc",
+            "editor_bg":"#0a0a0a","editor_fg":"#c8f0c8",
+            "editor_ln_bg":"#050505","editor_ln_fg":"#4a7a4a",
+            "console_bg":"#0a0a0a","console_fg":"#a8e0a8",
+            "sidebar_bg":"#0a0a0a","sidebar_fg":"#c8f0c8","sidebar_hdr":"#000000",
+            "toolbar_bg":"#0a0a0a","toolbar_fg":"#c8f0c8",
+            "statusbar_bg":"#0a0a0a","statusbar_fg":"#a8e0a8",
+            "font_family":"Courier New","font_size":11,
+        },
+        "16bit": {
+            "name":"16-bit (65 K col.)","pixel_scale":1,"scanlines":False,
+            "bg":"#000020","fg":"#f8f8f8",
+            "editor_bg":"#000030","editor_fg":"#f8e0a8",
+            "editor_ln_bg":"#000018","editor_ln_fg":"#8080c0",
+            "console_bg":"#000030","console_fg":"#f8e0a8",
+            "sidebar_bg":"#000040","sidebar_fg":"#f8e0a8","sidebar_hdr":"#000030",
+            "toolbar_bg":"#000040","toolbar_fg":"#f8e0a8",
+            "statusbar_bg":"#000030","statusbar_fg":"#f8e0a8",
+            "font_family":"Lucida Console","font_size":11,
+        },
+    }
+    def __init__(self):
+        self.mode = "normal"; self.palette_name = "nes"
+    @staticmethod
+    def _hex_to_rgb(c):
+        c = c.lstrip("#")
+        if len(c) == 3: c = "".join(ch*2 for ch in c)
+        return int(c[0:2],16), int(c[2:4],16), int(c[4:6],16)
+    @staticmethod
+    def _rgb_to_hex(r,g,b): return f"#{r:02x}{g:02x}{b:02x}"
+    def _nearest_in_palette(self, color, palette):
+        try: r,g,b = self._hex_to_rgb(color)
+        except Exception: return color
+        best,bd = None, 10**9
+        for name,hexc in palette.items():
+            pr,pg,pb = self._hex_to_rgb(hexc)
+            d = (r-pr)**2+(g-pg)**2+(b-pb)**2
+            if d < bd: bd,best = d,hexc
+        return best or color
+    def quantize(self, color):
+        if self.mode == "normal" or not color: return color
+        if self.mode == "8bit":
+            pal = self.PALETTES.get(self.palette_name, self.PALETTES["nes"])
+            return self._nearest_in_palette(color, pal)
+        if self.mode == "16bit":
+            try: r,g,b = self._hex_to_rgb(color)
+            except Exception: return color
+            r = (r>>3)<<3; g = (g>>3)<<3; b = (b>>3)<<3
+            return self._rgb_to_hex(r,g,b)
+        return color
+    def apply_to_canvas(self, canvas):
+        cfg = self.MODES[self.mode]
+        canvas.config(bg=cfg["bg"])
+        self._draw_scanlines(canvas, cfg)
+    def _draw_scanlines(self, canvas, cfg):
+        canvas.delete("scanlines")
+        if not cfg.get("scanlines"): return
+        try:
+            h = int(canvas.winfo_height()) or 400
+            w = int(canvas.winfo_width()) or 400
+        except Exception: return
+        for y in range(0, h, 3):
+            canvas.create_line(0, y, w, y, fill="#000000", stipple="gray25", tags="scanlines")
+
+
+# ==========================================================
+# 2) Señales internas
+# ==========================================================
+class _ReturnSignal(Exception):
+    def __init__(self, value): self.value = value
+class _BreakSignal(Exception): pass
+class _ContinueSignal(Exception): pass
+
+
+# ==========================================================
+# 3) Sprites
+# ==========================================================
+class Sprite:
+    def __init__(self, name, x=0, y=0, w=8, h=8, color="#ffffff", vx=0, vy=0):
+        self.name=name; self.x=x; self.y=y; self.w=w; self.h=h
+        self.color=color; self.vx=vx; self.vy=vy
+        self.canvas_ids=[]
+    def rect(self): return (self.x, self.y, self.x+self.w, self.y+self.h)
+    def intersects(self, other):
+        ax1,ay1,ax2,ay2 = self.rect()
+        bx1,by1,bx2,by2 = other.rect()
+        return not (ax2 < bx1 or bx2 < ax1 or ay2 < by1 or by2 < ay1)
+
+
+# ==========================================================
+# 4) Objeto / Clase EZScript
+# ==========================================================
+class EZObject:
+    def __init__(self, cls_name):
+        self.cls_name = cls_name
+        self.fields = {}
+        self.methods = {}
+    def __repr__(self): return f"<{self.cls_name} {self.fields}>"
+
+
+# ==========================================================
+# 5) Intérprete (con los 99 comandos nuevos)
+# ==========================================================
+class EasyScriptInterpreter:
+    def __init__(self, output_widget, canvas_widget, app, i18n=None):
+        self.variables = {}
+        self.functions = {}
+        self.classes = {}
+        self.sprites = {}
+        self.events = {}
+        self.timers = {}
+        self.modules = {}
+        self.breakpoints = set()
+        self.debug_mode = False
+        self.step_mode = False
+        self._debug_gate = None
+        self.call_stack = []
+        self.line_times = {}
+        self.output = output_widget
+        self.canvas = canvas_widget
+        self.app = app
+        self.i18n = i18n or I18n("es")
+        self.retro = RetroVideoMode()
+        self.should_stop = False
+        self.text_positions = {}
+        self.emulated_os = platform.system()
+        self.current_line_width = 3
+        self.current_draw_color = "#0984e3"
+        self.show_timestamps = False
+        self.execution_start = None; self.execution_time = 0.0
+        self.executed_lines = 0; self.last_error_line = None
+        self.test_results = []
+        self.achievements = []
+        self.COLOR_MAP = {
+            "rojo":"#e74c3c","azul":"#3498db","verde":"#2ecc71","amarillo":"#f1c40f",
+            "naranja":"#e67e22","morado":"#9b59b6","rosa":"#fd79a8","negro":"#2c3e50",
+            "blanco":"#ffffff","gris":"#95a5a6","cian":"#00cec9","violeta":"#a29bfe",
+            "marron":"#6d4c41","marrón":"#6d4c41","dorado":"#fdcb6e","plateado":"#b2bec3",
+        }
+        self._setup_console_tags()
+        self._init_audio()
+
+    def _init_audio(self):
+        self.audio_enabled = True
+        try:
+            if platform.system() == "Windows":
+                import winsound  # noqa
+        except Exception:
+            self.audio_enabled = False
+
+    def _beep(self, freq=440, dur_ms=80):
+        try:
+            if platform.system() == "Windows":
+                import winsound
+                winsound.Beep(int(freq), int(dur_ms)); return
+        except Exception: pass
+        try: self.app.root.bell()
+        except Exception: pass
+
+    def _setup_console_tags(self):
+        try:
+            self.output.tag_config("info", foreground="#ffffff")
+            self.output.tag_config("error", foreground="#e74c3c")
+            self.output.tag_config("warn", foreground="#f39c12")
+            self.output.tag_config("success", foreground="#2ecc71")
+            self.output.tag_config("dim", foreground="#7f8c8d")
+            self.output.tag_config("ts", foreground="#636e72")
+            self.output.tag_config("test_pass", foreground="#00b894")
+            self.output.tag_config("test_fail", foreground="#d63031")
+        except Exception: pass
+
+    def get_color(self, val):
+        c = str(val).strip().lower().replace('"','').replace("'","")
+        if c.startswith("#") or c.startswith("rgb"): return self.retro.quantize(c)
+        return self.retro.quantize(self.COLOR_MAP.get(c, c))
+
+    def log(self, text, level="info"):
+        prefix = f"[{datetime.now().strftime('%H:%M:%S')}] " if self.show_timestamps else ""
+        full = prefix + str(text)
+        self.output.insert(tk.END, full + "\n", level)
+        self.output.see(tk.END)
+        try: self.output.update()
+        except Exception: pass
+        try:
+            ln = int(self.output.index(tk.END).split('.')[0])
+            self.text_positions[str(text).strip()] = (100, ln*20)
+        except Exception: pass
+    def log_info(self,t):    self.log(f"ℹ️  {t}", "info")
+    def log_warn(self,t):    self.log(f"⚠️  {t}", "warn")
+    def log_error(self,t):   self.log(f"❌ {t}", "error")
+    def log_success(self,t): self.log(f"✅ {t}", "success")
+
+    def eval_expr(self, expr):
+        expr = str(expr).strip()
+        if (expr.startswith('"') and expr.endswith('"')) or \
+           (expr.startswith("'") and expr.endswith("'")):
+            return expr[1:-1]
+        tokens = re.split(r'(\s+|[+\-*/()==><!]+)', expr)
+        out = []
+        for token in tokens:
+            t = token.strip()
+            if t in self.variables:
+                v = self.variables[t]
+                if isinstance(v, EZObject): out.append(repr(v))
+                elif isinstance(v, str):    out.append(f'"{v}"')
+                else:                        out.append(repr(v))
+            else:
+                out.append(token)
+        parsed = "".join(out)
+        try:
+            return eval(parsed, {"__builtins__": {}}, {})
+        except Exception:
+            return expr
+
+    def _eval_cond(self, expr):
+        expr = expr.strip()
+        if expr.startswith("(") and expr.endswith(")"): expr = expr[1:-1].strip()
+        v = self.eval_expr(expr)
+        if isinstance(v, str):
+            if v.lower() in ("true","verdadero","1"): return True
+            if v.lower() in ("false","falso","0",""): return False
+            return bool(v)
+        return bool(v)
+
+    def validate(self, code):
+        problems = []
+        canon = [self.i18n.translate_line(l) for l in code.split("\n")]
+        for idx,line in enumerate(canon, start=1):
+            s = line.strip()
+            if not s or s.startswith("//"): continue
+            if s.count("(") != s.count(")"): problems.append((idx,"Paréntesis desbalanceados"))
+            if s.count("[") != s.count("]"): problems.append((idx,"Corchetes desbalanceados"))
+        return problems
+
+    def _safe_int(self,v,d=0):
+        try: return int(float(v))
+        except Exception: return d
+    def _safe_float(self,v,d=0.0):
+        try: return float(v)
+        except Exception: return d
+
+    def _debug_hook(self, line_num):
+        if not self.debug_mode: return
+        if line_num in self.breakpoints or self.step_mode:
+            self.step_mode = False
+            self._debug_gate = threading.Event()
+            if self.app:
+                self.app.root.after(0, lambda: self.app._on_debug_pause(line_num, self))
+            self._debug_gate.wait(timeout=60)
+            self._debug_gate = None
+            if self.should_stop:
+                raise _BreakSignal()
+
+    def continue_debug(self):
+        if self._debug_gate: self._debug_gate.set()
+    def step_next(self):
+        self.step_mode = True
+        if self._debug_gate: self._debug_gate.set()
+
+    def _find_block_end(self, lines, start, end, open_kw, close_kw):
+        depth = 1
+        for j in range(start+1, end):
+            t = self.i18n.translate_line(lines[j]['text'].strip())
+            if t.startswith(open_kw): depth += 1
+            elif t.startswith(close_kw):
+                depth -= 1
+                if depth == 0: return j
+        return end
+
+    def _find_if_structure(self, lines, start, end):
+        depth = 1; else_idx = None
+        for j in range(start+1, end):
+            t = self.i18n.translate_line(lines[j]['text'].strip())
+            if t.startswith("si:"): depth += 1
+            elif t.startswith("fin_si"):
+                depth -= 1
+                if depth == 0: return j, else_idx
+            elif depth == 1 and t.startswith("sino"): else_idx = j
+        return end, else_idx
+
+    def run_block(self, lines, start=0, end=None):
+        if end is None: end = len(lines)
+        i = start
+        while i < end and not self.should_stop:
+            raw = lines[i]['text']; ln = lines[i]['num']
+            line = self.i18n.translate_line(raw.strip())
+            if not line or line.startswith("//") or line.startswith("///"):
+                i += 1; continue
+
+            try: self._debug_hook(ln)
+            except _BreakSignal: return
+
+            if line.startswith("si:"):
+                cond = line[3:].strip()
+                end_si, else_idx = self._find_if_structure(lines, i, end)
+                if self._eval_cond(cond):
+                    self.run_block(lines, i+1, else_idx if else_idx else end_si)
+                elif else_idx is not None:
+                    self.run_block(lines, else_idx+1, end_si)
+                i = end_si + 1; continue
+
+            if line.startswith("mientras:"):
+                cond = line[9:].strip()
+                end_w = self._find_block_end(lines, i, end, "mientras:", "fin_mientras")
+                guard = 0
+                while self._eval_cond(cond) and not self.should_stop and guard < 1_000_000:
+                    try: self.run_block(lines, i+1, end_w)
+                    except _BreakSignal: break
+                    except _ContinueSignal: pass
+                    guard += 1
+                i = end_w + 1; continue
+
+            if line.startswith("bucle:"):
+                cnt = line[6:].strip()
+                end_b = self._find_block_end(lines, i, end, "bucle:", "fin_bucle")
+                n = self._safe_int(self.eval_expr(cnt))
+                for _ in range(max(0,n)):
+                    if self.should_stop: break
+                    try: self.run_block(lines, i+1, end_b)
+                    except _BreakSignal: break
+                    except _ContinueSignal: continue
+                i = end_b + 1; continue
+
+            if line.startswith("funcion:"):
+                end_f = self._find_block_end(lines, i, end, "funcion:", "fin_funcion")
+                m = re.match(r'funcion:\s*\((.*?)\)', line)
+                if m:
+                    parts = m.group(1).split(",",1)
+                    name = parts[0].strip()
+                    params = [p.strip() for p in parts[1].split(",")] if len(parts)>1 else []
+                    self.functions[name] = {"params": params, "body": lines[i+1:end_f]}
+                i = end_f + 1; continue
+
+            if line.startswith("clase:"):
+                end_c = self._find_block_end(lines, i, end, "clase:", "fin_clase")
+                m = re.match(r'clase:\s*\((.*?)\)', line)
+                if m:
+                    parts = [p.strip() for p in m.group(1).split(",")]
+                    name = parts[0]
+                    parent = parts[1] if len(parts) > 1 else None
+                    body = lines[i+1:end_c]
+                    methods = {}; fields = {}
+                    j = 0
+                    while j < len(body):
+                        t = self.i18n.translate_line(body[j]['text'].strip())
+                        if t.startswith("funcion:"):
+                            me = self._find_block_end(body, j, len(body), "funcion:", "fin_funcion")
+                            mm = re.match(r'funcion:\s*\((.*?)\)', t)
+                            if mm:
+                                pp = mm.group(1).split(",",1)
+                                mname = pp[0].strip()
+                                mparams = [p.strip() for p in pp[1].split(",")] if len(pp)>1 else []
+                                methods[mname] = {"params": mparams, "body": body[j+1:me]}
+                            j = me + 1
+                        elif t.startswith("propiedad:"):
+                            pm = re.match(r'propiedad:\s*\((.*?),(.*?)\)', t)
+                            if pm:
+                                fields[pm.group(1).strip()] = self.eval_expr(pm.group(2))
+                            j += 1
+                        else:
+                            j += 1
+                    self.classes[name] = {"parent": parent, "methods": methods, "fields": fields}
+                i = end_c + 1; continue
+
+            if line.startswith("test:"):
+                end_t = self._find_block_end(lines, i, end, "test:", "fin_test")
+                m = re.match(r'test:\s*\((.*?)\)', line)
+                name = m.group(1).strip().strip('"').strip("'") if m else "test"
+                try:
+                    self.run_block(lines, i+1, end_t)
+                    self.test_results.append((name, True, ""))
+                    self.log(f"  ✅ {name}", "test_pass")
+                except AssertionError as e:
+                    self.test_results.append((name, False, str(e)))
+                    self.log(f"  ❌ {name}: {e}", "test_fail")
+                except Exception as e:
+                    self.test_results.append((name, False, str(e)))
+                    self.log(f"  ❌ {name}: {e}", "test_fail")
+                i = end_t + 1; continue
+
+            if line.startswith("romper"): raise _BreakSignal()
+            if line.startswith("continuar"): raise _ContinueSignal()
+            if line.startswith("retornar"):
+                val = line[8:].lstrip(":").strip()
+                raise _ReturnSignal(self.eval_expr(val) if val else None)
+
+            self.executed_lines += 1
+            t0 = time.time()
+            try:
+                self._execute_line(line, ln)
+            except (_ReturnSignal, _BreakSignal, _ContinueSignal): raise
+            except AssertionError: raise
+            except Exception as e:
+                self.last_error_line = ln
+                self.log_error(f"Error L{ln}: {e}")
+                if self.app: self.app.highlight_error_line(ln)
+            self.line_times[ln] = self.line_times.get(ln, 0.0) + (time.time() - t0)
+            i += 1
+
+    # ==================================================
+    # EJECUCIÓN DE LÍNEA (con +99 comandos)
+    # ==================================================
+    def _execute_line(self, line, line_num):
+
+        # ---------------- SALIDA ----------------
+        if line.startswith("mostrar ") or line.startswith("print "):
+            self.log(self.eval_expr(line.split(" ",1)[1]))
+        elif line == "limpiar_pantalla":
+            self.output.delete("1.0", tk.END); self.canvas.delete("all")
+            self.text_positions.clear()
+        elif line == "limpiar_consola":
+            self.output.delete("1.0", tk.END)
+        elif line.startswith("boton:") or line.startswith("button:"):
+            prefix = "boton:" if line.startswith("boton:") else "button:"
+            content = line[len(prefix):].strip()
+            if content.startswith("(") and content.endswith(")"): content = content[1:-1]
+            parts = content.split(",",1)
+            txt = str(self.eval_expr(parts[0]))
+            action = parts[1].strip() if len(parts)>1 else ""
+            btn = tk.Button(self.output, text=txt, bg="#0984e3", fg="white",
+                            font=("Arial",9,"bold"),
+                            command=lambda c=action: self.execute_inline(c))
+            self.output.window_create(tk.END, window=btn)
+            self.output.insert(tk.END, "\n")
+
+        # ---------------- VARIABLES ----------------
+        elif line.startswith("var:"):
+            m = re.match(r'var:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = self.eval_expr(m.group(2))
+        elif line.startswith("incrementar:"):
+            m = re.match(r'incrementar:\s*\((.*?),(.*?)\)', line)
+            if m:
+                k = m.group(1).strip()
+                self.variables[k] = self.variables.get(k,0) + self._safe_int(self.eval_expr(m.group(2)),1)
+        elif line.startswith("decrementar:"):
+            m = re.match(r'decrementar:\s*\((.*?),(.*?)\)', line)
+            if m:
+                k = m.group(1).strip()
+                self.variables[k] = self.variables.get(k,0) - self._safe_int(self.eval_expr(m.group(2)),1)
+        elif line.startswith("entrada:"):
+            m = re.match(r'entrada:\s*\((.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = self.app.ask_input(str(self.eval_expr(m.group(2)))) or ""
+
+        # ---------------- CADENAS ----------------
+        elif line.startswith("mayusculas:"):
+            m = re.match(r'mayusculas:\s*\((.*?)\)', line)
+            if m:
+                k = m.group(1).strip(); self.variables[k] = str(self.variables.get(k,"")).upper()
+        elif line.startswith("minusculas:"):
+            m = re.match(r'minusculas:\s*\((.*?)\)', line)
+            if m:
+                k = m.group(1).strip(); self.variables[k] = str(self.variables.get(k,"")).lower()
+        elif line.startswith("longitud:"):
+            m = re.match(r'longitud:\s*\((.*?)\)', line)
+            if m: self.log(f"📏 Longitud: {len(str(self.eval_expr(m.group(1))))}")
+        elif line.startswith("reemplazar:"):
+            m = re.match(r'reemplazar:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                k = m.group(1).strip()
+                self.variables[k] = str(self.variables.get(k,"")).replace(
+                    str(self.eval_expr(m.group(2))), str(self.eval_expr(m.group(3))))
+        elif line.startswith("tipo_dato:"):
+            m = re.match(r'tipo_dato:\s*\((.*?)\)', line)
+            if m: self.log(f"ℹ️ Tipo: {type(self.eval_expr(m.group(1))).__name__}")
+        elif line.startswith("concatenar:") or line.startswith("unir:"):
+            m = re.match(r'(?:concatenar|unir):\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = \
+                    str(self.eval_expr(m.group(2))) + str(self.eval_expr(m.group(3)))
+        elif line.startswith("a_numero:"):
+            m = re.match(r'a_numero:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = float(self.eval_expr(m.group(2)))
+                except Exception: self.variables[m.group(1).strip()] = 0
+        elif line.startswith("a_texto:"):
+            m = re.match(r'a_texto:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = str(self.eval_expr(m.group(2)))
+        elif line.startswith("a_lista:"):
+            m = re.match(r'a_lista:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = list(self.eval_expr(m.group(2)))
+                except Exception: self.variables[m.group(1).strip()] = []
+        elif line.startswith("dividir_texto:"):
+            m = re.match(r'dividir_texto:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = \
+                    str(self.eval_expr(m.group(2))).split(str(self.eval_expr(m.group(3))))
+        elif line.startswith("indice:"):
+            m = re.match(r'indice:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                obj = self.eval_expr(m.group(2))
+                idx = self._safe_int(self.eval_expr(m.group(3)))
+                try: self.variables[m.group(1).strip()] = obj[idx]
+                except Exception: self.variables[m.group(1).strip()] = ""
+        elif line.startswith("invertir:"):
+            m = re.match(r'invertir:\s*\((.*?),(.*?)\)', line)
+            if m:
+                v = str(self.eval_expr(m.group(2)))
+                self.variables[m.group(1).strip()] = v[::-1]
+        elif line.startswith("ordenar:"):
+            m = re.match(r'ordenar:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = sorted(self.eval_expr(m.group(2)))
+                except Exception: pass
+        elif line.startswith("contar:"):
+            m = re.match(r'contar:\s*\((.*?)\)', line)
+            if m: self.log(f"🔢 Contar: {len(str(self.eval_expr(m.group(1))))}")
+
+        # --- ★ NUEVOS - STRINGS AVANZADAS (10) ---
+        elif line.startswith("trim:"):
+            m = re.match(r'trim:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = str(self.eval_expr(m.group(2))).strip()
+        elif line.startswith("trim_izq:"):
+            m = re.match(r'trim_izq:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = str(self.eval_expr(m.group(2))).lstrip()
+        elif line.startswith("trim_der:"):
+            m = re.match(r'trim_der:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = str(self.eval_expr(m.group(2))).rstrip()
+        elif line.startswith("subcadena:"):
+            m = re.match(r'subcadena:\s*\((.*?),(.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    txt = str(self.eval_expr(m.group(2)))
+                    a = self._safe_int(self.eval_expr(m.group(3)), 0)
+                    b = self._safe_int(self.eval_expr(m.group(4)), len(txt))
+                    self.variables[m.group(1).strip()] = txt[a:b]
+                except Exception: pass
+        elif line.startswith("empieza_con:"):
+            m = re.match(r'empieza_con:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = \
+                    str(self.eval_expr(m.group(2))).startswith(str(self.eval_expr(m.group(3))))
+        elif line.startswith("termina_con:"):
+            m = re.match(r'termina_con:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = \
+                    str(self.eval_expr(m.group(2))).endswith(str(self.eval_expr(m.group(3))))
+        elif line.startswith("buscar_pos:"):
+            m = re.match(r'buscar_pos:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    self.variables[m.group(1).strip()] = \
+                        str(self.eval_expr(m.group(2))).find(str(self.eval_expr(m.group(3))))
+                except Exception: self.variables[m.group(1).strip()] = -1
+        elif line.startswith("capitalizar:"):
+            m = re.match(r'capitalizar:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = str(self.eval_expr(m.group(2))).capitalize()
+        elif line.startswith("repetir_texto:"):
+            m = re.match(r'repetir_texto:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    self.variables[m.group(1).strip()] = \
+                        str(self.eval_expr(m.group(2))) * self._safe_int(self.eval_expr(m.group(3)),1)
+                except Exception: pass
+        elif line.startswith("formato:"):
+            m = re.match(r'formato:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                plantilla = str(self.eval_expr(m.group(2)))
+                valores = self.eval_expr(m.group(3))
+                try:
+                    if isinstance(valores, (list, tuple)):
+                        self.variables[m.group(1).strip()] = plantilla.format(*valores)
+                    else:
+                        self.variables[m.group(1).strip()] = plantilla.format(valores)
+                except Exception: self.variables[m.group(1).strip()] = plantilla
+
+        # ---------------- MATEMÁTICAS ----------------
+        elif line.startswith("random:"):
+            m = re.match(r'random:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = random.randint(
+                    self._safe_int(self.eval_expr(m.group(2))),
+                    self._safe_int(self.eval_expr(m.group(3))))
+        elif line.startswith("raiz:"):
+            m = re.match(r'raiz:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = math.sqrt(float(self.eval_expr(m.group(2))))
+                except Exception: self.variables[m.group(1).strip()] = 0
+        elif line.startswith("potencia:"):
+            m = re.match(r'potencia:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = math.pow(
+                    float(self.eval_expr(m.group(2))), float(self.eval_expr(m.group(3))))
+        elif line.startswith("redondear:"):
+            m = re.match(r'redondear:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = round(float(self.eval_expr(m.group(2))))
+                except Exception: pass
+        elif line.startswith("absoluto:"):
+            m = re.match(r'absoluto:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = abs(float(self.eval_expr(m.group(2))))
+                except Exception: pass
+        elif line.startswith("seno:"):
+            m = re.match(r'seno:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = math.sin(math.radians(float(self.eval_expr(m.group(2)))))
+                except Exception: pass
+        elif line.startswith("coseno:"):
+            m = re.match(r'coseno:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = math.cos(math.radians(float(self.eval_expr(m.group(2)))))
+                except Exception: pass
+        elif line.startswith("maximo:"):
+            m = re.match(r'maximo:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = max(
+                    self._safe_float(self.eval_expr(m.group(2))),
+                    self._safe_float(self.eval_expr(m.group(3))))
+        elif line.startswith("minimo:"):
+            m = re.match(r'minimo:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = min(
+                    self._safe_float(self.eval_expr(m.group(2))),
+                    self._safe_float(self.eval_expr(m.group(3))))
+        elif line.startswith("pi:"):
+            m = re.match(r'pi:\s*\((.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = math.pi
+        elif line.startswith("sumar:"):
+            m = re.match(r'sumar:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = self._safe_float(self.eval_expr(m.group(2))) + self._safe_float(self.eval_expr(m.group(3)))
+        elif line.startswith("restar:"):
+            m = re.match(r'restar:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = self._safe_float(self.eval_expr(m.group(2))) - self._safe_float(self.eval_expr(m.group(3)))
+        elif line.startswith("multiplicar:"):
+            m = re.match(r'multiplicar:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = self._safe_float(self.eval_expr(m.group(2))) * self._safe_float(self.eval_expr(m.group(3)))
+        elif line.startswith("dividir:"):
+            m = re.match(r'dividir:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = self._safe_float(self.eval_expr(m.group(2))) / self._safe_float(self.eval_expr(m.group(3)))
+                except Exception: self.variables[m.group(1).strip()] = 0
+        elif line.startswith("modulo:"):
+            m = re.match(r'modulo:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = self._safe_float(self.eval_expr(m.group(2))) % self._safe_float(self.eval_expr(m.group(3)))
+                except Exception: self.variables[m.group(1).strip()] = 0
+
+        # --- ★ NUEVOS - MATH AVANZADA (15) ---
+        elif line.startswith("tangente:"):
+            m = re.match(r'tangente:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = math.tan(math.radians(float(self.eval_expr(m.group(2)))))
+                except Exception: pass
+        elif line.startswith("arcoseno:"):
+            m = re.match(r'arcoseno:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = math.degrees(math.asin(float(self.eval_expr(m.group(2)))))
+                except Exception: pass
+        elif line.startswith("arcocoseno:"):
+            m = re.match(r'arcocoseno:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = math.degrees(math.acos(float(self.eval_expr(m.group(2)))))
+                except Exception: pass
+        elif line.startswith("arcotangente:"):
+            m = re.match(r'arcotangente:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = math.degrees(math.atan(float(self.eval_expr(m.group(2)))))
+                except Exception: pass
+        elif line.startswith("log_natural:"):
+            m = re.match(r'log_natural:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = math.log(float(self.eval_expr(m.group(2))))
+                except Exception: pass
+        elif line.startswith("log_base10:"):
+            m = re.match(r'log_base10:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = math.log10(float(self.eval_expr(m.group(2))))
+                except Exception: pass
+        elif line.startswith("log_base:"):
+            m = re.match(r'log_base:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    self.variables[m.group(1).strip()] = math.log(
+                        float(self.eval_expr(m.group(2))), float(self.eval_expr(m.group(3))))
+                except Exception: pass
+        elif line.startswith("exponencial:"):
+            m = re.match(r'exponencial:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = math.exp(float(self.eval_expr(m.group(2))))
+                except Exception: pass
+        elif line.startswith("factorial:"):
+            m = re.match(r'factorial:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = math.factorial(self._safe_int(self.eval_expr(m.group(2))))
+                except Exception: self.variables[m.group(1).strip()] = 1
+        elif line.startswith("gcd:"):
+            m = re.match(r'gcd:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = math.gcd(
+                    self._safe_int(self.eval_expr(m.group(2))),
+                    self._safe_int(self.eval_expr(m.group(3))))
+        elif line.startswith("lcm:"):
+            m = re.match(r'lcm:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    a = self._safe_int(self.eval_expr(m.group(2)))
+                    b = self._safe_int(self.eval_expr(m.group(3)))
+                    self.variables[m.group(1).strip()] = abs(a*b)//math.gcd(a,b) if a and b else 0
+                except Exception: self.variables[m.group(1).strip()] = 0
+        elif line.startswith("piso:"):
+            m = re.match(r'piso:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = math.floor(float(self.eval_expr(m.group(2))))
+                except Exception: pass
+        elif line.startswith("techo:"):
+            m = re.match(r'techo:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = math.ceil(float(self.eval_expr(m.group(2))))
+                except Exception: pass
+        elif line.startswith("truncar:"):
+            m = re.match(r'truncar:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = math.trunc(float(self.eval_expr(m.group(2))))
+                except Exception: pass
+        elif line.startswith("signo:"):
+            m = re.match(r'signo:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    v = float(self.eval_expr(m.group(2)))
+                    self.variables[m.group(1).strip()] = (v > 0) - (v < 0)
+                except Exception: self.variables[m.group(1).strip()] = 0
+
+        # --- ★ NUEVOS - RANDOM (5) ---
+        elif line.startswith("semilla:"):
+            m = re.match(r'semilla:\s*\((.*?)\)', line)
+            if m: random.seed(self.eval_expr(m.group(1)))
+        elif line.startswith("random_flotante:"):
+            m = re.match(r'random_flotante:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = random.uniform(
+                    self._safe_float(self.eval_expr(m.group(2))),
+                    self._safe_float(self.eval_expr(m.group(3))))
+        elif line.startswith("elegir:"):
+            m = re.match(r'elegir:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = random.choice(list(self.eval_expr(m.group(2))))
+                except Exception: pass
+        elif line.startswith("barajar:"):
+            m = re.match(r'barajar:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    l = list(self.eval_expr(m.group(2))); random.shuffle(l)
+                    self.variables[m.group(1).strip()] = l
+                except Exception: pass
+        elif line.startswith("muestra:"):
+            m = re.match(r'muestra:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    self.variables[m.group(1).strip()] = random.sample(
+                        list(self.eval_expr(m.group(2))),
+                        self._safe_int(self.eval_expr(m.group(3)),1))
+                except Exception: pass
+
+        # ---------------- LÓGICA ----------------
+        elif line.startswith("igual_a:"):
+            m = re.match(r'igual_a:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = (str(self.eval_expr(m.group(2))) == str(self.eval_expr(m.group(3))))
+        elif line.startswith("mayor_que:"):
+            m = re.match(r'mayor_que:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = self._safe_float(self.eval_expr(m.group(2))) > self._safe_float(self.eval_expr(m.group(3)))
+        elif line.startswith("menor_que:"):
+            m = re.match(r'menor_que:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = self._safe_float(self.eval_expr(m.group(2))) < self._safe_float(self.eval_expr(m.group(3)))
+        elif line.startswith("y:"):
+            m = re.match(r'y:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = bool(self.eval_expr(m.group(2))) and bool(self.eval_expr(m.group(3)))
+        elif line.startswith("o:"):
+            m = re.match(r'o:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = bool(self.eval_expr(m.group(2))) or bool(self.eval_expr(m.group(3)))
+        elif line.startswith("no:"):
+            m = re.match(r'no:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = not bool(self.eval_expr(m.group(2)))
+
+        # --- ★ NUEVOS - BITWISE (6) ---
+        elif line.startswith("bit_and:"):
+            m = re.match(r'bit_and:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = self._safe_int(self.eval_expr(m.group(2))) & self._safe_int(self.eval_expr(m.group(3)))
+        elif line.startswith("bit_or:"):
+            m = re.match(r'bit_or:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = self._safe_int(self.eval_expr(m.group(2))) | self._safe_int(self.eval_expr(m.group(3)))
+        elif line.startswith("bit_xor:"):
+            m = re.match(r'bit_xor:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = self._safe_int(self.eval_expr(m.group(2))) ^ self._safe_int(self.eval_expr(m.group(3)))
+        elif line.startswith("bit_not:"):
+            m = re.match(r'bit_not:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = ~self._safe_int(self.eval_expr(m.group(2)))
+        elif line.startswith("shl:"):
+            m = re.match(r'shl:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = self._safe_int(self.eval_expr(m.group(2))) << self._safe_int(self.eval_expr(m.group(3)))
+        elif line.startswith("shr:"):
+            m = re.match(r'shr:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = self._safe_int(self.eval_expr(m.group(2))) >> self._safe_int(self.eval_expr(m.group(3)))
+
+        # ---------------- DIBUJO ----------------
+        elif line.startswith("color:"):
+            m = re.match(r'color:\s*\((.*?)\)', line)
+            if m: self.current_draw_color = self.get_color(self.eval_expr(m.group(1).strip()))
+        elif line.startswith("linea:"):
+            m = re.match(r'linea:\s*\((.*?)\)', line)
+            if m:
+                a = [x.strip() for x in m.group(1).split(',')]
+                if len(a) >= 4:
+                    c = self.get_color(self.eval_expr(a[4])) if len(a)>4 else self.current_draw_color
+                    self.canvas.create_line(
+                        self._safe_int(self.eval_expr(a[0])), self._safe_int(self.eval_expr(a[1])),
+                        self._safe_int(self.eval_expr(a[2])), self._safe_int(self.eval_expr(a[3])),
+                        fill=c, width=self.current_line_width)
+        elif line.startswith("rectangulo:"):
+            m = re.match(r'rectangulo:\s*\((.*?)\)', line)
+            if m:
+                a = [self.eval_expr(x.strip()) for x in m.group(1).split(',')]
+                x,y = self._safe_int(a[0]), self._safe_int(a[1])
+                w,h = self._safe_int(a[2]), self._safe_int(a[3])
+                c = self.get_color(a[4]) if len(a)>4 else self.current_draw_color
+                self.canvas.create_rectangle(x,y,x+w,y+h,fill=c,outline="")
+        elif line.startswith("circulo:"):
+            m = re.match(r'circulo:\s*\((.*?)\)', line)
+            if m:
+                a = [self.eval_expr(x.strip()) for x in m.group(1).split(',')]
+                x,y = self._safe_int(a[0]), self._safe_int(a[1]); r = self._safe_int(a[2])
+                c = self.get_color(a[3]) if len(a)>3 else self.current_draw_color
+                self.canvas.create_oval(x-r,y-r,x+r,y+r,fill=c,outline="")
+        elif line.startswith("ovalo:"):
+            m = re.match(r'ovalo:\s*\((.*?)\)', line)
+            if m:
+                a = [self.eval_expr(x.strip()) for x in m.group(1).split(',')]
+                x,y = self._safe_int(a[0]), self._safe_int(a[1])
+                w,h = self._safe_int(a[2]), self._safe_int(a[3])
+                c = self.get_color(a[4]) if len(a)>4 else self.current_draw_color
+                self.canvas.create_oval(x,y,x+w,y+h,fill=c,outline="")
+        elif line.startswith("triangulo:"):
+            m = re.match(r'triangulo:\s*\((.*?)\)', line)
+            if m:
+                a = [self.eval_expr(x.strip()) for x in m.group(1).split(',')]
+                pts = [self._safe_int(a[i]) for i in range(6)]
+                c = self.get_color(a[6]) if len(a)>6 else self.current_draw_color
+                self.canvas.create_polygon(pts,fill=c,outline="")
+        elif line.startswith("texto_canvas:"):
+            m = re.match(r'texto_canvas:\s*\((.*?),(.*?),(.*?)(?:,(.*?))?\)', line)
+            if m:
+                x = self._safe_int(self.eval_expr(m.group(1)))
+                y = self._safe_int(self.eval_expr(m.group(2)))
+                txt = self.eval_expr(m.group(3))
+                c = self.get_color(self.eval_expr(m.group(4))) if m.group(4) else self.current_draw_color
+                self.canvas.create_text(x,y,text=str(txt),fill=c,font=("Arial",10,"bold"))
+        elif line.startswith("grosor_linea:"):
+            m = re.match(r'grosor_linea:\s*\((.*?)\)', line)
+            if m: self.current_line_width = self._safe_int(self.eval_expr(m.group(1)),1)
+        elif line == "borrar_canvas":
+            self.canvas.delete("all")
+        elif line.startswith("cuadricula:"):
+            m = re.match(r'cuadricula:\s*\((.*?)\)', line)
+            if m:
+                step = self._safe_int(self.eval_expr(m.group(1)),40)
+                if step > 0:
+                    gc = self.retro.quantize("#34495e")
+                    for x in range(0,400,step): self.canvas.create_line(x,0,x,400,fill=gc,dash=(1,3))
+                    for y in range(0,400,step): self.canvas.create_line(0,y,400,y,fill=gc,dash=(1,3))
+        elif line.startswith("rgb:"):
+            m = re.match(r'rgb:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                r = self._safe_int(self.eval_expr(m.group(1))) % 256
+                g = self._safe_int(self.eval_expr(m.group(2))) % 256
+                b = self._safe_int(self.eval_expr(m.group(3))) % 256
+                self.current_draw_color = self.retro.quantize(f"#{r:02x}{g:02x}{b:02x}")
+        elif line.startswith("pixel:"):
+            m = re.match(r'pixel:\s*\((.*?)\)', line)
+            if m:
+                a = [x.strip() for x in m.group(1).split(',')]
+                x = self._safe_int(self.eval_expr(a[0])); y = self._safe_int(self.eval_expr(a[1]))
+                c = self.get_color(self.eval_expr(a[2])) if len(a)>2 else self.current_draw_color
+                s = self.retro.MODES[self.retro.mode]["pixel_scale"]
+                self.canvas.create_rectangle(x,y,x+s,y+s,fill=c,outline="")
+
+        # ---------------- MODOS GRÁFICOS ----------------
+        elif line.startswith("modo_grafico:"):
+            m = re.match(r'modo_grafico:\s*\((.*?)\)', line)
+            if m:
+                mode = str(self.eval_expr(m.group(1))).strip().lower()
+                if mode in ("8bit","8-bit","8"): mode = "8bit"
+                elif mode in ("16bit","16-bit","16"): mode = "16bit"
+                else: mode = "normal"
+                self.retro.mode = mode
+                if self.app: self.app.apply_video_mode(mode, from_script=True)
+        elif line.startswith("paleta:"):
+            m = re.match(r'paleta:\s*\((.*?)\)', line)
+            if m:
+                name = str(self.eval_expr(m.group(1))).strip().lower()
+                if name in RetroVideoMode.PALETTES:
+                    self.retro.palette_name = name
+                    if self.app: self.app.apply_palette(name, from_script=True)
+
+        # ---------------- ESTRUCTURAS ----------------
+        elif line.startswith("lista:"):
+            m = re.match(r'lista:\s*\((.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = []
+        elif line.startswith("mapa:"):
+            m = re.match(r'mapa:\s*\((.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = {}
+        elif line.startswith("matriz:"):
+            m = re.match(r'matriz:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                rows = self._safe_int(self.eval_expr(m.group(2)))
+                cols = self._safe_int(self.eval_expr(m.group(3)))
+                self.variables[m.group(1).strip()] = [[0]*cols for _ in range(rows)]
+        elif line.startswith("agregar:"):
+            m = re.match(r'agregar:\s*\((.*?),(.*?)\)', line)
+            if m:
+                k = m.group(1).strip()
+                if isinstance(self.variables.get(k), list):
+                    self.variables[k].append(self.eval_expr(m.group(2)))
+        elif line.startswith("quitar:"):
+            m = re.match(r'quitar:\s*\((.*?),(.*?)\)', line)
+            if m:
+                k = m.group(1).strip()
+                val = self.eval_expr(m.group(2))
+                try:
+                    if isinstance(self.variables.get(k), list): self.variables[k].remove(val)
+                    elif isinstance(self.variables.get(k), dict): self.variables[k].pop(val, None)
+                except Exception: pass
+        elif line.startswith("obtener:"):
+            m = re.match(r'obtener:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                obj = self.variables.get(m.group(2).strip())
+                key = self.eval_expr(m.group(3))
+                try:
+                    if isinstance(obj, dict): self.variables[m.group(1).strip()] = obj.get(key)
+                    elif isinstance(obj, list): self.variables[m.group(1).strip()] = obj[int(key)]
+                    elif isinstance(obj, EZObject): self.variables[m.group(1).strip()] = obj.fields.get(str(key))
+                except Exception: pass
+        elif line.startswith("asignar:"):
+            m = re.match(r'asignar:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                obj = self.variables.get(m.group(1).strip())
+                key = self.eval_expr(m.group(2)); val = self.eval_expr(m.group(3))
+                try:
+                    if isinstance(obj, dict): obj[key] = val
+                    elif isinstance(obj, list): obj[int(key)] = val
+                    elif isinstance(obj, EZObject): obj.fields[str(key)] = val
+                except Exception: pass
+
+        # --- ★ NUEVOS - LISTAS (12) ---
+        elif line.startswith("promedio_lista:"):
+            m = re.match(r'promedio_lista:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = statistics.mean(self.eval_expr(m.group(2)))
+                except Exception: self.variables[m.group(1).strip()] = 0
+        elif line.startswith("unir_lista:"):
+            m = re.match(r'unir_lista:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    sep = str(self.eval_expr(m.group(2)))
+                    self.variables[m.group(1).strip()] = sep.join(str(x) for x in self.eval_expr(m.group(3)))
+                except Exception: pass
+        elif line.startswith("filtro_pares:"):
+            m = re.match(r'filtro_pares:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    self.variables[m.group(1).strip()] = [x for x in self.eval_expr(m.group(2)) if self._safe_int(x)%2==0]
+                except Exception: pass
+        elif line.startswith("filtro_impares:"):
+            m = re.match(r'filtro_impares:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    self.variables[m.group(1).strip()] = [x for x in self.eval_expr(m.group(2)) if self._safe_int(x)%2!=0]
+                except Exception: pass
+        elif line.startswith("mapear_doble:"):
+            m = re.match(r'mapear_doble:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    self.variables[m.group(1).strip()] = [self._safe_float(x)*2 for x in self.eval_expr(m.group(2))]
+                except Exception: pass
+        elif line.startswith("indice_lista:"):
+            m = re.match(r'indice_lista:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    self.variables[m.group(1).strip()] = list(self.eval_expr(m.group(2))).index(self.eval_expr(m.group(3)))
+                except Exception: self.variables[m.group(1).strip()] = -1
+        elif line.startswith("contar_valor:"):
+            m = re.match(r'contar_valor:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    self.variables[m.group(1).strip()] = list(self.eval_expr(m.group(2))).count(self.eval_expr(m.group(3)))
+                except Exception: self.variables[m.group(1).strip()] = 0
+        elif line.startswith("aplanar:"):
+            m = re.match(r'aplanar:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    out = []
+                    for sub in self.eval_expr(m.group(2)):
+                        if isinstance(sub, (list, tuple)): out.extend(sub)
+                        else: out.append(sub)
+                    self.variables[m.group(1).strip()] = out
+                except Exception: pass
+        elif line.startswith("unico:"):
+            m = re.match(r'unico:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    seen, out = set(), []
+                    for x in self.eval_expr(m.group(2)):
+                        if x not in seen: seen.add(x); out.append(x)
+                    self.variables[m.group(1).strip()] = out
+                except Exception: pass
+        elif line.startswith("zip_lista:"):
+            m = re.match(r'zip_lista:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    self.variables[m.group(1).strip()] = list(zip(self.eval_expr(m.group(2)), self.eval_expr(m.group(3))))
+                except Exception: pass
+        elif line.startswith("rango:"):
+            m = re.match(r'rango:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    self.variables[m.group(1).strip()] = list(range(
+                        self._safe_int(self.eval_expr(m.group(2))),
+                        self._safe_int(self.eval_expr(m.group(3)))))
+                except Exception: pass
+        elif line.startswith("eliminar_duplicados:"):
+            m = re.match(r'eliminar_duplicados:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = list(dict.fromkeys(self.eval_expr(m.group(2))))
+                except Exception: pass
+        elif line.startswith("contiene:"):
+            m = re.match(r'contiene:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = self.eval_expr(m.group(3)) in self.eval_expr(m.group(2))
+                except Exception: self.variables[m.group(1).strip()] = False
+
+        # ---------------- FUNCIONES / CLASES ----------------
+        elif line.startswith("llamar:"):
+            m = re.match(r'llamar:\s*\((.*?)\)', line)
+            if m:
+                parts = [p.strip() for p in m.group(1).split(',')]
+                fname = parts[0].strip('"').strip("'")
+                args = parts[1:]
+                self.variables["resultado"] = self._call_function(fname, args)
+        elif line.startswith("nuevo:"):
+            m = re.match(r'nuevo:\s*\((.*?),(.*?)\)', line)
+            if m:
+                var = m.group(1).strip(); cls = m.group(2).strip().strip('"').strip("'")
+                self.variables[var] = self._instantiate(cls)
+        elif line.startswith("llamar_metodo:"):
+            m = re.match(r'llamar_metodo:\s*\((.*?),(.*?)(?:,(.*))?\)', line)
+            if m:
+                var = m.group(1).strip(); meth = m.group(2).strip().strip('"').strip("'")
+                args = [a.strip() for a in m.group(3).split(",")] if m.group(3) else []
+                obj = self.variables.get(var)
+                if isinstance(obj, EZObject):
+                    self._invoke_method(obj, meth, args)
+
+        # ---------------- EVENTOS / TIMERS ----------------
+        elif line.startswith("al:"):
+            m = re.match(r'al:\s*\((.*?),(.*?)\)', line)
+            if m:
+                ev = m.group(1).strip().strip('"').strip("'")
+                fn = m.group(2).strip().strip('"').strip("'")
+                self.events.setdefault(ev, []).append(fn)
+        elif line.startswith("emitir:"):
+            m = re.match(r'emitir:\s*\((.*?)(?:,(.*))?\)', line)
+            if m:
+                ev = m.group(1).strip().strip('"').strip("'")
+                payload = self.eval_expr(m.group(2)) if m.group(2) else None
+                for h in self.events.get(ev, []):
+                    try: self._invoke_handler(h, payload)
+                    except Exception as e: self.log_warn(f"Handler {ev}: {e}")
+        elif line.startswith("cada:"):
+            m = re.match(r'cada:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                tid = m.group(1).strip().strip('"').strip("'")
+                ms = self._safe_int(self.eval_expr(m.group(2)),1000)
+                fn = m.group(3).strip().strip('"').strip("'")
+                self._start_timer(tid, ms, fn)
+        elif line.startswith("tecla_al:"):
+            m = re.match(r'tecla_al:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                key = str(self.eval_expr(m.group(1))).strip()
+                fn  = m.group(3).strip().strip('"').strip("'")
+                if self.app: self.app.bind_canvas_key(key, lambda f=fn: self._call_function(f, []))
+        elif line.startswith("raton_al:"):
+            m = re.match(r'raton_al:\s*\((.*?),(.*?)\)', line)
+            if m:
+                ev = str(self.eval_expr(m.group(1))).strip()
+                fn = m.group(2).strip().strip('"').strip("'")
+                if self.app: self.app.bind_canvas_mouse(ev, lambda f=fn: self._call_function(f, []))
+
+        # ---------------- SPRITES ----------------
+        elif line.startswith("sprite:"):
+            m = re.match(r'sprite:\s*\((.*?),(.*?),(.*?),(.*?),(.*?)(?:,(.*?))?\)', line)
+            if m:
+                name = m.group(1).strip().strip('"').strip("'")
+                x = self._safe_int(self.eval_expr(m.group(2)))
+                y = self._safe_int(self.eval_expr(m.group(3)))
+                w = self._safe_int(self.eval_expr(m.group(4)),8)
+                h = self._safe_int(self.eval_expr(m.group(5)),8)
+                c = self.get_color(self.eval_expr(m.group(6))) if m.group(6) else "#ffffff"
+                self.sprites[name] = Sprite(name,x,y,w,h,c)
+                self._draw_sprite(self.sprites[name])
+        elif line.startswith("mover_sprite:"):
+            m = re.match(r'mover_sprite:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                name = m.group(1).strip().strip('"').strip("'")
+                dx = self._safe_int(self.eval_expr(m.group(2)))
+                dy = self._safe_int(self.eval_expr(m.group(3)))
+                s = self.sprites.get(name)
+                if s:
+                    s.x += dx; s.y += dy; self._draw_sprite(s)
+        elif line.startswith("colisiona:"):
+            m = re.match(r'colisiona:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                var = m.group(1).strip()
+                a = self.sprites.get(m.group(2).strip().strip('"').strip("'"))
+                b = self.sprites.get(m.group(3).strip().strip('"').strip("'"))
+                self.variables[var] = bool(a and b and a.intersects(b))
+
+        # ---------------- AUDIO ----------------
+        elif line.startswith("musica:"):
+            m = re.match(r'musica:\s*\((.*?)\)', line)
+            if m: self._play_music(str(self.eval_expr(m.group(1))))
+        elif line.startswith("nota:"):
+            m = re.match(r'nota:\s*\((.*?),(.*?)\)', line)
+            if m:
+                f = self._safe_int(self.eval_expr(m.group(1)), 440)
+                d = self._safe_int(self.eval_expr(m.group(2)), 120)
+                self._beep(f, d)
+        elif line == "pitido":
+            try: self.app.root.bell()
+            except Exception: pass
+        elif line.startswith("beep:"):
+            m = re.match(r'beep:\s*\((.*?)(?:,(.*?))?\)', line)
+            if m:
+                f = self._safe_int(self.eval_expr(m.group(1)), 440)
+                d = self._safe_int(self.eval_expr(m.group(2)), 80) if m.group(2) else 80
+                self._beep(f, d)
+
+        # ---------------- TESTS ----------------
+        elif line.startswith("afirmar_igual:"):
+            m = re.match(r'afirmar_igual:\s*\((.*?),(.*?)(?:,(.*))?\)', line)
+            if m:
+                a = self.eval_expr(m.group(1)); b = self.eval_expr(m.group(2))
+                msg = self.eval_expr(m.group(3)) if m.group(3) else f"{a!r} != {b!r}"
+                assert str(a) == str(b), msg
+        elif line.startswith("afirmar_verdad:"):
+            m = re.match(r'afirmar_verdad:\s*\((.*?)(?:,(.*))?\)', line)
+            if m:
+                v = self.eval_expr(m.group(1))
+                msg = self.eval_expr(m.group(2)) if m.group(2) else f"no es verdadero: {v}"
+                assert bool(v), msg
+        elif line.startswith("afirmar_falso:"):
+            m = re.match(r'afirmar_falso:\s*\((.*?)(?:,(.*))?\)', line)
+            if m:
+                v = self.eval_expr(m.group(1))
+                msg = self.eval_expr(m.group(2)) if m.group(2) else f"no es falso: {v}"
+                assert not bool(v), msg
+
+        # ---------------- HASH / ENCODE ----------------
+        elif line.startswith("hash_md5:"):
+            m = re.match(r'hash_md5:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = hashlib.md5(str(self.eval_expr(m.group(2))).encode()).hexdigest()
+        elif line.startswith("hash_sha1:"):
+            m = re.match(r'hash_sha1:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = hashlib.sha1(str(self.eval_expr(m.group(2))).encode()).hexdigest()
+        elif line.startswith("hash_sha256:"):
+            m = re.match(r'hash_sha256:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = hashlib.sha256(str(self.eval_expr(m.group(2))).encode()).hexdigest()
+        elif line.startswith("base64_cod:"):
+            m = re.match(r'base64_cod:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = base64.b64encode(str(self.eval_expr(m.group(2))).encode()).decode("ascii")
+        elif line.startswith("base64_dec:"):
+            m = re.match(r'base64_dec:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = base64.b64decode(str(self.eval_expr(m.group(2))).encode()).decode("utf-8")
+                except Exception as e: self.log_warn(str(e))
+        elif line.startswith("uuid:"):
+            m = re.match(r'uuid:\s*\((.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = str(uuidlib.uuid4())
+
+        # ---------------- REGEX ----------------
+        elif line.startswith("regex_buscar:"):
+            m = re.match(r'regex_buscar:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    txt = str(self.eval_expr(m.group(2))); pat = str(self.eval_expr(m.group(3)))
+                    self.variables[m.group(1).strip()] = re.findall(pat, txt)
+                except Exception as e: self.log_warn(str(e))
+        elif line.startswith("regex_reemplazar:"):
+            m = re.match(r'regex_reemplazar:\s*\((.*?),(.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    self.variables[m.group(1).strip()] = re.sub(
+                        str(self.eval_expr(m.group(2))),
+                        str(self.eval_expr(m.group(3))),
+                        str(self.eval_expr(m.group(4))))
+                except Exception as e: self.log_warn(str(e))
+        elif line.startswith("regex_match:"):
+            m = re.match(r'regex_match:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    self.variables[m.group(1).strip()] = bool(
+                        re.match(str(self.eval_expr(m.group(2))), str(self.eval_expr(m.group(3)))))
+                except Exception: self.variables[m.group(1).strip()] = False
+        elif line.startswith("regex_split:"):
+            m = re.match(r'regex_split:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    self.variables[m.group(1).strip()] = re.split(
+                        str(self.eval_expr(m.group(2))), str(self.eval_expr(m.group(3))))
+                except Exception: pass
+        elif line.startswith("regex_grupos:"):
+            m = re.match(r'regex_grupos:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    mm = re.match(str(self.eval_expr(m.group(2))), str(self.eval_expr(m.group(3))))
+                    self.variables[m.group(1).strip()] = list(mm.groups()) if mm else []
+                except Exception: self.variables[m.group(1).strip()] = []
+        elif line.startswith("regex_escapar:"):
+            m = re.match(r'regex_escapar:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = re.escape(str(self.eval_expr(m.group(2))))
+
+        # ---------------- CSV ----------------
+        elif line.startswith("csv_parsear:"):
+            m = re.match(r'csv_parsear:\s*\((.*?),(.*?)\)', line)
+            if m:
+                txt = str(self.eval_expr(m.group(2)))
+                self.variables[m.group(1).strip()] = list(csv.reader(io.StringIO(txt)))
+        elif line.startswith("csv_generar:"):
+            m = re.match(r'csv_generar:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    buf = io.StringIO()
+                    csv.writer(buf).writerows(self.eval_expr(m.group(2)))
+                    self.variables[m.group(1).strip()] = buf.getvalue()
+                except Exception: pass
+
+        # ---------------- RED ----------------
+        elif line.startswith("http_get:"):
+            m = re.match(r'http_get:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    with urllib.request.urlopen(str(self.eval_expr(m.group(2))), timeout=8) as r:
+                        self.variables[m.group(1).strip()] = r.read().decode("utf-8","replace")
+                except Exception as e:
+                    self.log_warn(f"HTTP: {e}"); self.variables[m.group(1).strip()] = ""
+        elif line.startswith("http_post:"):
+            m = re.match(r'http_post:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    url = str(self.eval_expr(m.group(2)))
+                    data = str(self.eval_expr(m.group(3))).encode()
+                    req = urllib.request.Request(url, data=data, method="POST")
+                    with urllib.request.urlopen(req, timeout=8) as r:
+                        self.variables[m.group(1).strip()] = r.read().decode("utf-8","replace")
+                except Exception as e:
+                    self.log_warn(f"HTTP: {e}"); self.variables[m.group(1).strip()] = ""
+        elif line.startswith("http_put:"):
+            m = re.match(r'http_put:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    url = str(self.eval_expr(m.group(2)))
+                    data = str(self.eval_expr(m.group(3))).encode()
+                    req = urllib.request.Request(url, data=data, method="PUT")
+                    with urllib.request.urlopen(req, timeout=8) as r:
+                        self.variables[m.group(1).strip()] = r.read().decode("utf-8","replace")
+                except Exception as e:
+                    self.log_warn(f"HTTP: {e}"); self.variables[m.group(1).strip()] = ""
+        elif line.startswith("http_delete:"):
+            m = re.match(r'http_delete:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    req = urllib.request.Request(str(self.eval_expr(m.group(2))), method="DELETE")
+                    with urllib.request.urlopen(req, timeout=8) as r:
+                        self.variables[m.group(1).strip()] = r.status
+                except Exception as e:
+                    self.log_warn(f"HTTP: {e}"); self.variables[m.group(1).strip()] = 0
+        elif line.startswith("url_codificar:"):
+            m = re.match(r'url_codificar:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = urllib.parse.quote(str(self.eval_expr(m.group(2))))
+        elif line.startswith("url_decodificar:"):
+            m = re.match(r'url_decodificar:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = urllib.parse.unquote(str(self.eval_expr(m.group(2))))
+        elif line.startswith("resolver_dns:"):
+            m = re.match(r'resolver_dns:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = socket.gethostbyname(str(self.eval_expr(m.group(2))))
+                except Exception: self.variables[m.group(1).strip()] = ""
+
+        # ---------------- JSON ----------------
+        elif line.startswith("json_dumps:"):
+            m = re.match(r'json_dumps:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = json.dumps(self.eval_expr(m.group(2)), ensure_ascii=False)
+                except Exception: pass
+        elif line.startswith("json_loads:"):
+            m = re.match(r'json_loads:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = json.loads(str(self.eval_expr(m.group(2))))
+                except Exception: pass
+        elif line.startswith("json_guardar:"):
+            m = re.match(r'json_guardar:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    with open(str(self.eval_expr(m.group(1))), "w", encoding="utf-8") as f:
+                        json.dump(self.eval_expr(m.group(2)), f, ensure_ascii=False, indent=2)
+                except Exception as e: self.log_error(str(e))
+        elif line.startswith("json_cargar:"):
+            m = re.match(r'json_cargar:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    with open(str(self.eval_expr(m.group(2))), "r", encoding="utf-8") as f:
+                        self.variables[m.group(1).strip()] = json.load(f)
+                except Exception as e: self.log_error(str(e))
+        elif line.startswith("json_valido:"):
+            m = re.match(r'json_valido:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    json.loads(str(self.eval_expr(m.group(2)))); self.variables[m.group(1).strip()] = True
+                except Exception: self.variables[m.group(1).strip()] = False
+        elif line.startswith("json_obtener:"):
+            m = re.match(r'json_obtener:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    obj = json.loads(str(self.eval_expr(m.group(2)))) if isinstance(self.eval_expr(m.group(2)), str) else self.eval_expr(m.group(2))
+                    for k in str(self.eval_expr(m.group(3))).split("."):
+                        obj = obj[k] if isinstance(obj, dict) else obj[int(k)]
+                    self.variables[m.group(1).strip()] = obj
+                except Exception: pass
+
+        # ---------------- FECHA / HORA ----------------
+        elif line == "fecha":   self.log(f"📅 {datetime.now().strftime('%Y-%m-%d')}")
+        elif line == "hora":    self.log(f"⏰ {datetime.now().strftime('%H:%M:%S')}")
+        elif line == "hora_actual": self.log(f"⏰ {datetime.now().strftime('%H:%M:%S')}")
+        elif line == "fecha_hora":  self.log(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+        # --- ★ NUEVOS - FECHA (8) ---
+        elif line.startswith("año:"):
+            m = re.match(r'año:\s*\((.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = datetime.now().year
+        elif line.startswith("mes:"):
+            m = re.match(r'mes:\s*\((.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = datetime.now().month
+        elif line.startswith("dia:"):
+            m = re.match(r'dia:\s*\((.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = datetime.now().day
+        elif line.startswith("hora_num:"):
+            m = re.match(r'hora_num:\s*\((.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = datetime.now().hour
+        elif line.startswith("minuto:"):
+            m = re.match(r'minuto:\s*\((.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = datetime.now().minute
+        elif line.startswith("segundo:"):
+            m = re.match(r'segundo:\s*\((.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = datetime.now().second
+        elif line.startswith("timestamp:"):
+            m = re.match(r'timestamp:\s*\((.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = time.time()
+        elif line.startswith("formatear_fecha:"):
+            m = re.match(r'formatear_fecha:\s*\((.*?),(.*?)\)', line)
+            if m:
+                fmt = str(self.eval_expr(m.group(2)))
+                self.variables[m.group(1).strip()] = datetime.now().strftime(fmt)
+
+        elif line.startswith("esperar:"):
+            m = re.match(r'esperar:\s*\((.*?)\)', line)
+            if m:
+                t = self._safe_float(self.eval_expr(m.group(1)))
+                end = time.time() + t
+                while time.time() < end and not self.should_stop:
+                    time.sleep(0.02)
+                    try: self.output.update()
+                    except Exception: pass
+
+        # ---------------- DIÁLOGOS / SISTEMA ----------------
+        elif line.startswith("alerta:"):
+            m = re.match(r'alerta:\s*\((.*?)\)', line)
+            if m: messagebox.showinfo("EasyScript", str(self.eval_expr(m.group(1))))
+        elif line.startswith("confirmar:"):
+            m = re.match(r'confirmar:\s*\((.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = messagebox.askyesno("Confirmar",
+                                                                          str(self.eval_expr(m.group(2))))
+        elif line.startswith("abrir_url:"):
+            m = re.match(r'abrir_url:\s*\((.*?)\)', line)
+            if m: webbrowser.open(str(self.eval_expr(m.group(1))))
+        elif line.startswith("copiar:"):
+            m = re.match(r'copiar:\s*\((.*?)\)', line)
+            if m:
+                self.app.root.clipboard_clear()
+                self.app.root.clipboard_append(str(self.eval_expr(m.group(1))))
+        elif line.startswith("notificacion:"):
+            m = re.match(r'notificacion:\s*\((.*?)(?:,(.*?))?\)', line)
+            if m:
+                titulo = str(self.eval_expr(m.group(1)))
+                cuerpo = str(self.eval_expr(m.group(2))) if m.group(2) else ""
+                try: self.app.tray_notify(titulo, cuerpo)
+                except Exception: self.log_info(f"🔔 {titulo}: {cuerpo}")
+
+        # --- ★ NUEVOS - SYSTEM (6) ---
+        elif line.startswith("sistema:"):
+            m = re.match(r'sistema:\s*\((.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = platform.system()
+        elif line.startswith("arquitectura:"):
+            m = re.match(r'arquitectura:\s*\((.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = platform.machine()
+        elif line.startswith("usuario:"):
+            m = re.match(r'usuario:\s*\((.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = os.environ.get("USERNAME") or os.environ.get("USER") or "unknown"
+        elif line.startswith("cwd:"):
+            m = re.match(r'cwd:\s*\((.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = os.getcwd()
+        elif line.startswith("variable_entorno:"):
+            m = re.match(r'variable_entorno:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = os.environ.get(str(self.eval_expr(m.group(2))), "")
+        elif line.startswith("proceso_id:"):
+            m = re.match(r'proceso_id:\s*\((.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = os.getpid()
+
+        # --- ★ NUEVOS - SHELL (2) ---
+        elif line.startswith("ejecutar_shell:"):
+            m = re.match(r'ejecutar_shell:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    r = subprocess.run(str(self.eval_expr(m.group(2))), shell=True,
+                                       capture_output=True, text=True, timeout=30)
+                    self.variables[m.group(1).strip()] = (r.stdout or "") + (r.stderr or "")
+                except Exception as e:
+                    self.variables[m.group(1).strip()] = str(e)
+        elif line.startswith("ejecutar_cmd:"):
+            m = re.match(r'ejecutar_cmd:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    r = subprocess.run(str(self.eval_expr(m.group(2))).split(),
+                                       capture_output=True, text=True, timeout=30)
+                    self.variables[m.group(1).strip()] = (r.stdout or "") + (r.stderr or "")
+                except Exception as e:
+                    self.variables[m.group(1).strip()] = str(e)
+
+        # ---------------- LOGGING ----------------
+        elif line.startswith("log_info:"):
+            m = re.match(r'log_info:\s*\((.*?)\)', line)
+            if m: self.log_info(self.eval_expr(m.group(1)))
+        elif line.startswith("log_warn:"):
+            m = re.match(r'log_warn:\s*\((.*?)\)', line)
+            if m: self.log_warn(self.eval_expr(m.group(1)))
+        elif line.startswith("log_error:"):
+            m = re.match(r'log_error:\s*\((.*?)\)', line)
+            if m: self.log_error(self.eval_expr(m.group(1)))
+        elif line.startswith("logro:"):
+            m = re.match(r'logro:\s*\((.*?)\)', line)
+            if m:
+                ach = str(self.eval_expr(m.group(1)))
+                if ach not in self.achievements:
+                    self.achievements.append(ach)
+                    self.log(f"🏆 {ach}", "success")
+
+        # ---------------- ARCHIVOS ----------------
+        elif line.startswith("crear_archivo:"):
+            m = re.match(r'crear_archivo:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    with open(self.eval_expr(m.group(1)), "w", encoding="utf-8") as f:
+                        f.write(str(self.eval_expr(m.group(2))))
+                    self.log_success(f"OK: {self.eval_expr(m.group(1))}")
+                except Exception as e: self.log_error(str(e))
+        elif line.startswith("leer_archivo:"):
+            m = re.match(r'leer_archivo:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    with open(self.eval_expr(m.group(2)), "r", encoding="utf-8") as f:
+                        self.variables[m.group(1).strip()] = f.read()
+                except Exception as e: self.log_error(str(e))
+        elif line.startswith("existe_archivo:"):
+            m = re.match(r'existe_archivo:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = os.path.exists(str(self.eval_expr(m.group(2))))
+        elif line.startswith("eliminar_archivo:"):
+            m = re.match(r'eliminar_archivo:\s*\((.*?)\)', line)
+            if m:
+                try: os.remove(str(self.eval_expr(m.group(1))))
+                except Exception as e: self.log_error(str(e))
+        elif line.startswith("listar_archivos:"):
+            m = re.match(r'listar_archivos:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = os.listdir(str(self.eval_expr(m.group(2))))
+                except Exception: self.variables[m.group(1).strip()] = []
+
+        # --- ★ NUEVOS - ARCHIVOS (12) ---
+        elif line.startswith("copiar_archivo:"):
+            m = re.match(r'copiar_archivo:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: shutil.copy(str(self.eval_expr(m.group(1))), str(self.eval_expr(m.group(2))))
+                except Exception as e: self.log_error(str(e))
+        elif line.startswith("mover_archivo:"):
+            m = re.match(r'mover_archivo:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: shutil.move(str(self.eval_expr(m.group(1))), str(self.eval_expr(m.group(2))))
+                except Exception as e: self.log_error(str(e))
+        elif line.startswith("renombrar_archivo:"):
+            m = re.match(r'renombrar_archivo:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: os.rename(str(self.eval_expr(m.group(1))), str(self.eval_expr(m.group(2))))
+                except Exception as e: self.log_error(str(e))
+        elif line.startswith("tamano_archivo:"):
+            m = re.match(r'tamano_archivo:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try: self.variables[m.group(1).strip()] = os.path.getsize(str(self.eval_expr(m.group(2))))
+                except Exception: self.variables[m.group(1).strip()] = 0
+        elif line.startswith("crear_carpeta:"):
+            m = re.match(r'crear_carpeta:\s*\((.*?)\)', line)
+            if m:
+                try: os.makedirs(str(self.eval_expr(m.group(1))), exist_ok=True)
+                except Exception as e: self.log_error(str(e))
+        elif line.startswith("eliminar_carpeta:"):
+            m = re.match(r'eliminar_carpeta:\s*\((.*?)\)', line)
+            if m:
+                try: shutil.rmtree(str(self.eval_expr(m.group(1))))
+                except Exception as e: self.log_error(str(e))
+        elif line.startswith("leer_lineas:"):
+            m = re.match(r'leer_lineas:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    with open(str(self.eval_expr(m.group(2))), "r", encoding="utf-8") as f:
+                        self.variables[m.group(1).strip()] = f.read().splitlines()
+                except Exception: self.variables[m.group(1).strip()] = []
+        elif line.startswith("escribir_lineas:"):
+            m = re.match(r'escribir_lineas:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    with open(str(self.eval_expr(m.group(1))), "w", encoding="utf-8") as f:
+                        f.write("\n".join(str(x) for x in self.eval_expr(m.group(2))))
+                except Exception as e: self.log_error(str(e))
+        elif line.startswith("agregar_archivo:"):
+            m = re.match(r'agregar_archivo:\s*\((.*?),(.*?)\)', line)
+            if m:
+                try:
+                    with open(str(self.eval_expr(m.group(1))), "a", encoding="utf-8") as f:
+                        f.write(str(self.eval_expr(m.group(2))))
+                except Exception as e: self.log_error(str(e))
+        elif line.startswith("listar_extension:"):
+            m = re.match(r'listar_extension:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                try:
+                    carpeta = str(self.eval_expr(m.group(2))); ext = str(self.eval_expr(m.group(3)))
+                    self.variables[m.group(1).strip()] = [f for f in os.listdir(carpeta) if f.endswith(ext)]
+                except Exception: self.variables[m.group(1).strip()] = []
+        elif line.startswith("ruta_absoluta:"):
+            m = re.match(r'ruta_absoluta:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = os.path.abspath(str(self.eval_expr(m.group(2))))
+        elif line.startswith("ruta_unir:"):
+            m = re.match(r'ruta_unir:\s*\((.*?),(.*?),(.*?)\)', line)
+            if m:
+                self.variables[m.group(1).strip()] = os.path.join(
+                    str(self.eval_expr(m.group(2))), str(self.eval_expr(m.group(3))))
+        elif line.startswith("nombre_archivo:"):
+            m = re.match(r'nombre_archivo:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = os.path.basename(str(self.eval_expr(m.group(2))))
+        elif line.startswith("carpeta_padre:"):
+            m = re.match(r'carpeta_padre:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = os.path.dirname(str(self.eval_expr(m.group(2))))
+        elif line.startswith("extension_archivo:"):
+            m = re.match(r'extension_archivo:\s*\((.*?),(.*?)\)', line)
+            if m: self.variables[m.group(1).strip()] = os.path.splitext(str(self.eval_expr(m.group(2))))[1]
+
+        # ---------------- DETENER / IMPORT ----------------
+        elif line == "detener":
+            self.should_stop = True
+        elif line.startswith("importar:"):
+            m = re.match(r'importar:\s*\((.*?)\)', line)
+            if m:
+                path = str(self.eval_expr(m.group(1)))
+                self._import_module(path)
+
+        # ---------------- IDIOMA ----------------
+        elif line.startswith("idioma:"):
+            m = re.match(r'idioma:\s*\((.*?)\)', line)
+            if m:
+                lang = str(self.eval_expr(m.group(1))).strip().lower()[:2]
+                self.i18n.set_lang(lang)
+                if self.app: self.app.change_language(lang, from_script=True)
+
+        else:
+            if ":" in line and not line.startswith("//"):
+                self.log_warn(f"Comando no reconocido L{line_num}: {line}")
+
+    # ==================================================
+    # FUNCIONES / CLASES
+    # ==================================================
+    def _call_function(self, fname, args):
+        if fname not in self.functions:
+            self.log_warn(f"Función no definida: {fname}")
+            return None
+        spec = self.functions[fname]
+        saved = dict(self.variables)
+        for i,p in enumerate(spec["params"]):
+            if i < len(args): self.variables[p] = self.eval_expr(args[i])
+        self.call_stack.append(fname)
+        result = None
+        try:
+            self.run_block(spec["body"])
+        except _ReturnSignal as r: result = r.value
+        except _BreakSignal: pass
+        finally:
+            self.call_stack.pop()
+            self.variables = saved
+        return result
+
+    def _instantiate(self, cls_name):
+        if cls_name not in self.classes:
+            self.log_warn(f"Clase no definida: {cls_name}")
+            return EZObject(cls_name)
+        spec = self.classes[cls_name]
+        obj = EZObject(cls_name)
+        if spec.get("parent") in self.classes:
+            parent = self._instantiate(spec["parent"])
+            obj.fields.update(parent.fields)
+            obj.methods.update(parent.methods)
+        obj.fields.update(dict(spec["fields"]))
+        obj.methods.update(dict(spec["methods"]))
+        if "constructor" in obj.methods:
+            self._invoke_method(obj, "constructor", [])
+        return obj
+
+    def _invoke_method(self, obj, meth, args):
+        if meth not in obj.methods:
+            self.log_warn(f"Método no existe: {meth}")
+            return None
+        spec = obj.methods[meth]
+        saved_vars = dict(self.variables)
+        self.variables["self"] = obj
+        for i,p in enumerate(spec["params"]):
+            if i < len(args): self.variables[p] = self.eval_expr(args[i])
+        self.call_stack.append(f"{obj.cls_name}.{meth}")
+        result = None
+        try:
+            self.run_block(spec["body"])
+        except _ReturnSignal as r: result = r.value
+        finally:
+            self.call_stack.pop()
+            self.variables = saved_vars
+        return result
+
+    def _invoke_handler(self, fn, payload):
+        if fn in self.functions:
+            saved = dict(self.variables)
+            self.variables["_event"] = payload
+            try: self._call_function(fn, [])
+            finally: self.variables = saved
+
+    def _import_module(self, path):
+        try:
+            with open(path, "r", encoding="utf-8") as f: code = f.read()
+        except Exception as e:
+            self.log_error(f"Import: {e}"); return
+        lines = [{'num':i+1,'text':l} for i,l in enumerate(code.split("\n"))]
+        modname = os.path.splitext(os.path.basename(path))[0]
+        saved_vars = dict(self.variables)
+        try: self.run_block(lines)
+        finally:
+            exported = {k:v for k,v in self.variables.items() if k not in saved_vars}
+            self.modules[modname] = exported
+            self.variables = saved_vars
+        self.log_info(f"📦 OK: {modname}")
+
+    def _start_timer(self, tid, ms, fn):
+        def tick():
+            if self.should_stop: return
+            try: self._call_function(fn, [])
+            except Exception as e: self.log_warn(f"Timer {tid}: {e}")
+            if tid in self.timers:
+                self.timers[tid]["job"] = self.app.root.after(ms, tick)
+        job = self.app.root.after(ms, tick)
+        self.timers[tid] = {"job": job, "ms": ms, "fn": fn}
+
+    def _draw_sprite(self, sp):
+        for cid in sp.canvas_ids:
+            try: self.canvas.delete(cid)
+            except Exception: pass
+        sp.canvas_ids.clear()
+        cid = self.canvas.create_rectangle(sp.x, sp.y, sp.x+sp.w, sp.y+sp.h,
+                                           fill=sp.color, outline="#000000",
+                                           tags=("sprite", sp.name))
+        sp.canvas_ids.append(cid)
+
+    def _play_music(self, seq):
+        notes = {"do":262,"re":294,"mi":330,"fa":349,"sol":392,"la":440,"si":494,"do5":523}
+        parts = [p.strip() for p in seq.split(",") if p.strip()]
+        def play(i=0):
+            if i >= len(parts) or self.should_stop: return
+            p = parts[i]
+            if ":" in p:
+                f,d = p.split(":"); f = self._safe_int(f,440); d = self._safe_int(d,150)
+            else:
+                key = p.lower(); f = notes.get(key, 440); d = 150
+            self._beep(f, d)
+            self.app.root.after(d+20, lambda: play(i+1))
+        play()
+
+    def execute(self, code):
+        self.variables = {}
+        self.should_stop = False
+        self.executed_lines = 0
+        self.last_error_line = None
+        self.call_stack = []
+        self.line_times = {}
+        self.test_results = []
+        self.output.delete("1.0", tk.END)
+        self.canvas.delete("all")
+        self.text_positions.clear()
+        self.canvas.config(bg=self.retro.MODES[self.retro.mode]["bg"])
+        self.current_draw_color = "#0984e3"
+
+        self.execution_start = time.time()
+        raw = code.split('\n')
+        structured = [{'num':i+1,'text':l} for i,l in enumerate(raw)]
+        try: self.run_block(structured)
+        except _ReturnSignal: pass
+        except _BreakSignal: pass
+        self.execution_time = time.time() - self.execution_start
+
+        self.log("", "info")
+        passed = sum(1 for _,ok,_ in self.test_results if ok)
+        total  = len(self.test_results)
+        extra = f" · Tests {passed}/{total}" if total else ""
+        self.log_success(
+            f"{self.execution_time:.3f}s · {self.executed_lines} stmt · "
+            f"{len(self.variables)} vars{extra}"
+        )
+        if self.app: self.app.on_execution_finished(self.execution_time, self.executed_lines)
+
+    def execute_inline(self, single_line):
+        if single_line:
+            try: self.run_block([{'num':0,'text':single_line}])
+            except Exception as e: self.log_error(str(e))
+
+
+EZScriptInterpreter = EasyScriptInterpreter
+
+
+# ============ API PÚBLICA ============
+class EZScripting(EasyScriptInterpreter):
+    """Motor EZScripting: ejecuta código EZScript sin interfaz gráfica."""
+    def __init__(self, lang="es", echo=False):
+        self.console, self.canvas = HeadlessConsole(echo), HeadlessCanvas()
+        super().__init__(self.console, self.canvas, HeadlessApp(), I18n(lang))
+    def run(self, code, timers=0):
+        """Ejecuta `code` y devuelve la salida de consola. `timers` = segundos para dejar correr cada:() / musica:()."""
+        self.execute(code)
+        if timers: self.app.root.pump(timers)
+        return self.console.get_text()
+    def eval_line(self, line):
+        self.run_block([{"num": 0, "text": line}])
+        return self.console.get_text()
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="ezscripting", description="EZScripting - motor de EZScript")
+    ap.add_argument("file", nargs="?"); ap.add_argument("--lang", default="es", choices=I18n.LANGS)
+    ap.add_argument("--svg"); ap.add_argument("--timers", type=float, default=0)
+    a = ap.parse_args(argv)
+    ez = EZScripting(a.lang, echo=True)
+    if a.file:
+        ez.run(open(a.file, encoding="utf-8").read(), a.timers)
+        if a.svg: open(a.svg, "w", encoding="utf-8").write(ez.canvas.to_svg()); print(f"SVG -> {a.svg}")
+        return
+    print(f"EZScripting v{__version__} - REPL (Ctrl+D para salir)")
+    while True:
+        try: line = input("ez> ")
+        except EOFError: break
+        if line.strip(): ez.run_block([{"num": 0, "text": line}])
+
+if __name__ == "__main__":
+    main()
