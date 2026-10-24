@@ -18,6 +18,8 @@ Las versiones tambien se dividen en 2 partes
 
 -**EZScript HTML (Web)**: a diferencia de EZScript normal esta version es la version web diseñado para NO tener que instalar Python 
 
+-**EZScripting**: El motor de EZScript
+
 ## Capturas de pantalla
 
 | EZScript (Python) | EZScript HTML |
