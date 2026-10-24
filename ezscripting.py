@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-EZScripting (EasyScripting) v5.0 - motor headless de EZScript
+EZScripting (EasyScripting) v5.0 - motor headless de EZScript 
 =============================================================
 Intérprete multilenguaje (ES/EN/PT) SIN Tkinter: úsalo desde Python, la terminal o un servidor.
 
