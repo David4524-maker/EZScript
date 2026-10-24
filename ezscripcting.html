@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>EZScripting HTML</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#eef1f4;--ed:#fff;--fg:#1e272e;--bar:#dfe6ec;--mu:#6b7780;--ac:#0984e3;--er:#c0392b;--wa:#b9770e;--ok:#1e8449;--mono:Consolas,"Courier New",monospace}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1e272e;--ed:#282c34;--fg:#f1f2f6;--bar:#2c3e50;--mu:#95a5a6;--er:#ff6b5b;--wa:#f5b041;--ok:#2ecc71}}
+:root[data-theme="dark"]{--bg:#1e272e;--ed:#282c34;--fg:#f1f2f6;--bar:#2c3e50;--mu:#95a5a6;--er:#ff6b5b;--wa:#f5b041;--ok:#2ecc71}
+body[data-mode="8bit"]{--bg:#0a0a0a;--ed:#050505;--fg:#c8f0c8;--bar:#0a0a0a;--mu:#4a7a4a;--ac:#3a9a3a;--mono:"Courier New",monospace;font-family:var(--mono)}
+body[data-mode="16bit"]{--bg:#000030;--ed:#000020;--fg:#f8e0a8;--bar:#000040;--mu:#8080c0;--ac:#4060d0;--mono:"Lucida Console",monospace}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px system-ui,sans-serif;display:flex;flex-direction:column}
+header{background:var(--bar);padding:8px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+h1{font-size:17px;margin:0 auto 0 0}h1 b{color:var(--ac)}
+select,button{background:var(--ed);color:var(--fg);border:1px solid var(--mu);border-radius:6px;padding:5px 9px;font:inherit}
+button{cursor:pointer;background:var(--ac);color:#fff;border-color:var(--ac);font-weight:600}button.g{background:var(--ed);color:var(--fg);border-color:var(--mu)}
+main{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px}
+section{display:flex;flex-direction:column;gap:6px;min-height:0;min-width:0}
+textarea,#out{flex:1;min-height:140px;background:var(--ed);color:var(--fg);border:1px solid var(--mu);border-radius:6px;padding:8px;font:13px/1.45 var(--mono);resize:none;overflow:auto}
+textarea{tab-size:2;white-space:pre}#out{white-space:pre-wrap;flex:1}
+#cv{width:100%;max-width:400px;aspect-ratio:1;background:#1e272e;border:1px solid var(--mu);border-radius:6px;align-self:center}
+body[data-mode="8bit"] #cv{image-rendering:pixelated}
+.e{color:var(--er)}.w{color:var(--wa)}.s{color:var(--ok)}
+.row{display:flex;gap:6px;flex-wrap:wrap}
+details{font-size:12px;color:var(--mu)}code{font-family:var(--mono);line-height:1.6}
+footer{padding:4px 12px;background:var(--bar);font-size:12px;color:var(--mu)}
+@media(max-width:760px){main{grid-template-columns:1fr;overflow:auto}}
+</style></head><body data-mode="normal">
+<header>
+<h1>EZScripting <b>HTML</b></h1>
+<select id="ex" aria-label="Ejemplos"></select>
+<select id="lg"><option value="es">🇪🇸 Español</option><option value="en">🇬🇧 English</option><option value="pt">🇵🇹 Português</option></select>
+<select id="mo"><option value="normal">Normal 24-bit</option><option value="8bit">8-bit</option><option value="16bit">16-bit</option></select>
+<select id="pa"><option value="nes">NES</option><option value="gameboy">Game Boy</option><option value="cga">CGA</option></select>
+<button id="run">▶ <span data-i="run">Ejecutar</span></button>
+<button id="clr" class="g">🧹 <span data-i="clr">Limpiar</span></button>
+</header>
+<main>
+<section><textarea id="src" spellcheck="false" aria-label="Editor"></textarea>
+<details><summary id="rs"></summary><code id="ref"></code></details></section>
+<section><canvas id="cv" width="400" height="400"></canvas><div id="out" role="log"></div></section>
+</main>
+<footer id="st">Ctrl+Enter / F5</footer>
+<script>
+const $=i=>document.getElementById(i);
+const T={es:{run:"Ejecutar",clr:"Limpiar",cmd:"Comandos"},en:{run:"Run",clr:"Clear",cmd:"Commands"},pt:{run:"Executar",clr:"Limpar",cmd:"Comandos"}};
+// ---- alias EN/PT -> comando canónico (ES). Todos los idiomas funcionan a la vez ----
+const AL={};"show mostrar exibir mostrar clear_screen limpiar_pantalla limpar_tela limpiar_pantalla clear_console limpiar_consola let var increment incrementar decrement decrementar input entrada set asignar definir asignar if si se si else sino senao sino end_if fin_si fim_se fin_si while mientras enquanto mientras end_while fin_mientras fim_enquanto fin_mientras loop bucle end_loop fin_bucle fim_loop fin_bucle break romper quebrar romper continue continuar function funcion funcao funcion end_function fin_funcion fim_funcao fin_funcion call llamar chamar llamar return retornar uppercase mayusculas maiusculas mayusculas lowercase minusculas length longitud comprimento longitud replace reemplazar substituir reemplazar sqrt raiz power potencia round redondear arredondar redondear abs absoluto sin seno cos coseno cosseno coseno max maximo min minimo add sumar somar sumar subtract restar subtrair restar multiply multiplicar divide dividir list lista append agregar adicionar agregar remove quitar remover quitar get obtener obter obtener sort ordenar range_list rango intervalo rango aleatorio random fact factorial fatorial factorial color color cor color line linea linha linea rectangle rectangulo retangulo rectangulo circle circulo oval ovalo triangle triangulo canvas_text texto_canvas line_width grosor_linea espessura_linha grosor_linea clear_canvas borrar_canvas apagar_canvas borrar_canvas grid cuadricula grade cuadricula move_sprite mover_sprite collides colisiona colide colisiona video_mode modo_grafico palette paleta language idioma beep pitido apito pitido tone beep tom beep note nota music musica achievement logro conquista logro stop detener parar detener wait esperar alert alerta unique unico flatten aplanar list_avg promedio_lista media_lista promedio_lista list_sum suma_lista soma_lista suma_lista trim trim capitalize capitalizar repeat_text repetir_texto substring subcadena subcadeia subcadena date fecha data fecha time hora year año ano año month mes day dia".split(" ").forEach((x,i,a)=>i%2==0&&(AL[x]=a[i+1]));
+const OPEN={si:"fin_si",mientras:"fin_mientras",bucle:"fin_bucle",funcion:"fin_funcion"};
+const COL={rojo:"#e74c3c",azul:"#3498db",verde:"#2ecc71",amarillo:"#f1c40f",naranja:"#e67e22",morado:"#9b59b6",rosa:"#fd79a8",negro:"#2c3e50",blanco:"#ffffff",gris:"#95a5a6",cian:"#00cec9",violeta:"#a29bfe",marron:"#6d4c41",dorado:"#fdcb6e",plateado:"#b2bec3"};
+const PAL={nes:"#000000 #fcfcfc #bcbcbc #f83800 #00a800 #0058f8 #f8b800 #f87858 #b800b8 #3cbcfc #f878f8 #503000 #fce0a8 #c4c4c4 #9878f8".split(" "),gameboy:"#0f380f #306230 #8bac0f #9bbc0f".split(" "),cga:"#000000 #ffffff #aaaaaa #ff55ff #55ffff #5555ff #ffff55 #ff5555 #aa5500".split(" ")};
+const BG={normal:"#1e272e","8bit":"#101010","16bit":"#000020"};
+const NOTE={do:262,re:294,mi:330,fa:349,sol:392,la:440,si:494,do5:523};
+let V,F,S,DL,stop,steps,T0,col,lw,mode="normal",pal="nes",lang="es";
+const out=$("out"),cv=$("cv"),X=cv.getContext("2d");
+class Sig{constructor(k,v){this.k=k;this.v=v}}
+const log=(t,c)=>{const d=document.createElement("div");d.textContent=fmt(t);if(c)d.className=c;out.append(d);out.scrollTop=1e9};
+const fmt=v=>Array.isArray(v)||(v&&typeof v=="object")?JSON.stringify(v):String(v);
+// ---- evaluador de expresiones (sin eval) ----
+function ev(s){s=s==null?"":String(s).trim();if(!s)return"";try{
+ const t=(s.match(/"[^"]*"|'[^']*'|\d+\.?\d*|[A-Za-zñÑáéíóúÁÉÍÓÚ_][\wñÑáéíóúÁÉÍÓÚ]*|==|!=|<=|>=|&&|\|\||\S/g)||[]).map(x=>({and:"&&",or:"||",not:"!"})[x]||x);let p=0;
+ const B=[["||"],["&&"],["==","!="],["<",">","<=",">="],["+","-"],["*","/","%"]],
+ O={"||":(a,b)=>a||b,"&&":(a,b)=>a&&b,"==":(a,b)=>a==b,"!=":(a,b)=>a!=b,"<":(a,b)=>a<b,">":(a,b)=>a>b,"<=":(a,b)=>a<=b,">=":(a,b)=>a>=b,"+":(a,b)=>a+b,"-":(a,b)=>a-b,"*":(a,b)=>a*b,"/":(a,b)=>a/b,"%":(a,b)=>a%b};
+ const L=l=>{if(l>5)return U();let a=L(l+1);while(B[l].includes(t[p])){const o=t[p++];a=O[o](a,L(l+1))}return a};
+ const U=()=>t[p]=="-"?(p++,-U()):t[p]=="!"?(p++,!U()):A();
+ const A=()=>{const x=t[p++];let v;if(x==undefined)throw 0;
+  if(x=="("){v=L(0);p++}
+  else if(x=="["){v=[];while(t[p]!="]"){v.push(L(0));if(t[p]==",")p++}p++}
+  else if(x[0]=='"'||x[0]=="'")v=x.slice(1,-1);
+  else if(/^\d/.test(x))v=parseFloat(x);
+  else if(/^(true|verdadero)$/.test(x))v=true;else if(/^(false|falso)$/.test(x))v=false;
+  else if(x in V)v=V[x];else throw 0;
+  while(t[p]=="["){p++;v=v[L(0)];p++}return v};
+ const r=L(0);if(p<t.length)throw 0;return r}catch{return s}}
+const tr=v=>typeof v=="string"?!/^(false|falso|0|)$/i.test(v):!!v;
+const unp=r=>/^\(.*\)$/s.test(r)?r.slice(1,-1):r;
+const nm=s=>String(s).replace(/^["']|["']$/g,"").trim();
+function sp(s){const o=[];let d=0,q=0,c="";for(const ch of s){if(q){c+=ch;if(ch==q)q=0}else if(ch=='"'||ch=="'"){q=ch;c+=ch}else if("([{".includes(ch)){d++;c+=ch}else if(")]}".includes(ch)){d--;c+=ch}else if(ch==","&&!d){o.push(c.trim());c=""}else c+=ch}o.push(c.trim());return o}
+function parse(code){return code.split("\n").map((raw,i)=>{raw=raw.trim();const m=raw.match(/^([A-Za-zñÑáéíóúÁÉÍÓÚ_][\wñÑáéíóúÁÉÍÓÚ]*)(?::\s*|\s+|$)(.*)$/);return m&&!raw.startsWith("//")?{n:i+1,c:AL[m[1]]||m[1],r:m[2].trim(),raw}:null}).filter(Boolean)}
+// ---- color / modos retro ----
+const hx=(h,i)=>parseInt(h.substr(i,2),16);
+const q=h=>{if(mode=="normal"||!/^#[0-9a-f]{6}$/i.test(h))return h;if(mode=="16bit")return"#"+[1,3,5].map(i=>(hx(h,i)>>3<<3).toString(16).padStart(2,"0")).join("");let b,bd=1e9;for(const p of PAL[pal]){const d=[1,3,5].reduce((s,i)=>s+(hx(p,i)-hx(h,i))**2,0);if(d<bd){bd=d;b=p}}return b};
+const gc=c=>{c=String(c).trim().toLowerCase();return q(COL[c]||c)};
+const dr=f=>{DL.push(f);f()};
+function repaint(){X.fillStyle=BG[mode];X.fillRect(0,0,400,400);DL.forEach(f=>f());for(const k in S){const s=S[k];X.fillStyle=s.c;X.fillRect(s.x,s.y,s.w,s.h);X.strokeStyle="#000";X.lineWidth=1;X.strokeRect(s.x,s.y,s.w,s.h)}}
+let AC;const beep=(f,ms)=>{try{AC=AC||new AudioContext();const o=AC.createOscillator(),g=AC.createGain();o.frequency.value=f;g.gain.value=.05;o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+ms/1000)}catch{}};
+// ---- comandos que asignan resultado a su primer argumento: cmd:(var, args...) ----
+const z=n=>String(n).padStart(2,"0"),N=x=>parseFloat(x)||0,I=x=>Math.trunc(N(x)),lst=l=>Array.isArray(l)?l:[...l];
+const D={trim:t=>(t+"").trim(),trim_izq:t=>(t+"").trimStart(),trim_der:t=>(t+"").trimEnd(),subcadena:(t,a,b)=>(t+"").slice(a,b),empieza_con:(t,s)=>(t+"").startsWith(s),termina_con:(t,s)=>(t+"").endsWith(s),buscar_pos:(t,s)=>(t+"").indexOf(s),capitalizar:t=>{t+="";return t.charAt(0).toUpperCase()+t.slice(1).toLowerCase()},repetir_texto:(t,n)=>(t+"").repeat(Math.max(0,I(n))),concatenar:(a,b)=>""+a+b,unir:(a,b)=>""+a+b,dividir_texto:(t,s)=>(t+"").split(s),invertir:t=>[...t+""].reverse().join(""),
+a_numero:N,a_texto:t=>t+"",a_lista:lst,
+raiz:t=>Math.sqrt(N(t)),potencia:(a,b)=>Math.pow(N(a),N(b)),redondear:t=>Math.round(N(t)),absoluto:t=>Math.abs(N(t)),seno:x=>Math.sin(N(x)*Math.PI/180),coseno:x=>Math.cos(N(x)*Math.PI/180),tangente:x=>Math.tan(N(x)*Math.PI/180),arcoseno:x=>Math.asin(N(x))*180/Math.PI,arcocoseno:x=>Math.acos(N(x))*180/Math.PI,arcotangente:x=>Math.atan(N(x))*180/Math.PI,
+log_natural:x=>Math.log(N(x)),log_base10:x=>Math.log10(N(x)),log_base:(x,b)=>Math.log(N(x))/Math.log(N(b)),exponencial:x=>Math.exp(N(x)),factorial:n=>{let r=1;for(let i=2;i<=I(n);i++)r*=i;return r},gcd:(a,b)=>{a=I(a);b=I(b);while(b)[a,b]=[b,a%b];return Math.abs(a)},lcm:(a,b)=>I(a)&&I(b)?Math.abs(I(a)*I(b))/D.gcd(a,b):0,
+piso:x=>Math.floor(N(x)),techo:x=>Math.ceil(N(x)),truncar:x=>Math.trunc(N(x)),signo:x=>Math.sign(N(x)),sumar:(a,b)=>N(a)+N(b),restar:(a,b)=>N(a)-N(b),multiplicar:(a,b)=>N(a)*N(b),dividir:(a,b)=>N(b)?N(a)/N(b):0,modulo:(a,b)=>N(b)?N(a)%N(b):0,maximo:(a,b)=>Math.max(N(a),N(b)),minimo:(a,b)=>Math.min(N(a),N(b)),pi:()=>Math.PI,
+random:(a,b)=>I(a)+Math.floor(Math.random()*(I(b)-I(a)+1)),random_flotante:(a,b)=>N(a)+Math.random()*(N(b)-N(a)),elegir:l=>lst(l)[Math.floor(Math.random()*lst(l).length)],barajar:l=>lst(l).slice().sort(()=>Math.random()-.5),muestra:(l,n)=>D.barajar(l).slice(0,I(n)),
+igual_a:(a,b)=>a==b,mayor_que:(a,b)=>N(a)>N(b),menor_que:(a,b)=>N(a)<N(b),y:(a,b)=>tr(a)&&tr(b),o:(a,b)=>tr(a)||tr(b),no:a=>!tr(a),
+bit_and:(a,b)=>I(a)&I(b),bit_or:(a,b)=>I(a)|I(b),bit_xor:(a,b)=>I(a)^I(b),bit_not:a=>~I(a),shl:(a,n)=>I(a)<<I(n),shr:(a,n)=>I(a)>>I(n),
+promedio_lista:l=>lst(l).reduce((a,b)=>a+N(b),0)/lst(l).length,suma_lista:l=>lst(l).reduce((a,b)=>a+N(b),0),max_lista:l=>Math.max(...lst(l)),min_lista:l=>Math.min(...lst(l)),longitud_lista:l=>lst(l).length,unir_lista:(s,l)=>lst(l).join(s),filtro_pares:l=>lst(l).filter(x=>I(x)%2==0),filtro_impares:l=>lst(l).filter(x=>I(x)%2!=0),mapear_doble:l=>lst(l).map(x=>N(x)*2),indice_lista:(l,x)=>lst(l).indexOf(x),contar_valor:(l,x)=>lst(l).filter(y=>y==x).length,aplanar:l=>lst(l).flat(),unico:l=>[...new Set(lst(l))],eliminar_duplicados:l=>[...new Set(lst(l))],zip_lista:(a,b)=>lst(a).map((x,i)=>[x,lst(b)[i]]),rango:(a,b)=>Array.from({length:Math.max(0,I(b)-I(a))},(_,i)=>I(a)+i),contiene:(l,x)=>l.includes(x),ordenar:l=>lst(l).slice().sort((a,b)=>a>b?1:a<b?-1:0),
+año:()=>new Date().getFullYear(),mes:()=>new Date().getMonth()+1,dia:()=>new Date().getDate(),hora_num:()=>new Date().getHours(),minuto:()=>new Date().getMinutes(),segundo:()=>new Date().getSeconds(),timestamp:()=>Date.now()/1000,
+formatear_fecha:f=>{const d=new Date();return(f+"").replace(/%([YmdHMS])/g,(_,k)=>({Y:d.getFullYear(),m:z(d.getMonth()+1),d:z(d.getDate()),H:z(d.getHours()),M:z(d.getMinutes()),S:z(d.getSeconds())})[k])},
+base64_cod:t=>btoa(unescape(encodeURIComponent(t))),base64_dec:t=>decodeURIComponent(escape(atob(t))),uuid:()=>crypto.randomUUID(),json_dumps:o=>JSON.stringify(o),json_loads:t=>JSON.parse(t),json_valido:t=>{try{JSON.parse(t);return true}catch{return false}},json_obtener:(o,k)=>(k+"").split(".").reduce((x,p)=>x[p],typeof o=="string"?JSON.parse(o):o),url_codificar:encodeURIComponent,url_decodificar:decodeURIComponent,
+regex_buscar:(t,p)=>(t+"").match(new RegExp(p,"g"))||[],regex_reemplazar:(p,r,t)=>(t+"").replace(new RegExp(p,"g"),r),regex_match:(p,t)=>new RegExp("^(?:"+p+")").test(t),regex_split:(p,t)=>(t+"").split(new RegExp(p)),regex_grupos:(p,t)=>{const m=(t+"").match(new RegExp("^(?:"+p+")"));return m?m.slice(1):[]},regex_escapar:t=>(t+"").replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),csv_parsear:t=>(t+"").split("\n").map(r=>r.split(",")),
+sistema:()=>navigator.platform||"web",arquitectura:()=>/64/.test(navigator.userAgent)?"x86_64":"unknown"};
+// ---- comandos de procedimiento ----
+const ip=(a,k)=>V[a[0]]=(k*(a[1]?N(ev(a[1])):1))+N(V[a[0]]);
+const C={
+ var:a=>V[a[0]]=ev(a[1]),incrementar:a=>ip(a,1),decrementar:a=>ip(a,-1),entrada:a=>{let r="";try{r=prompt(ev(a[1]))||""}catch{}V[a[0]]=r},
+ mayusculas:a=>V[a[0]]=String(V[a[0]]??"").toUpperCase(),minusculas:a=>V[a[0]]=String(V[a[0]]??"").toLowerCase(),reemplazar:a=>V[a[0]]=String(V[a[0]]??"").split(ev(a[1])).join(ev(a[2])),
+ longitud:a=>log("📏 Longitud: "+String(ev(a[0])).length),tipo_dato:a=>{const v=ev(a[0]);log("ℹ️ Tipo: "+(Array.isArray(v)?"list":typeof v))},
+ lista:a=>V[a[0]]=[],mapa:a=>V[a[0]]={},matriz:a=>V[a[0]]=Array.from({length:I(ev(a[1]))},()=>Array(I(ev(a[2]))).fill(0)),
+ agregar:a=>Array.isArray(V[a[0]])&&V[a[0]].push(ev(a[1])),
+ quitar:a=>{const o=V[a[0]],v=ev(a[1]);if(Array.isArray(o)){const i=o.indexOf(v);i>=0&&o.splice(i,1)}else if(o)delete o[v]},
+ obtener:a=>{const o=V[a[1]];V[a[0]]=o?o[ev(a[2])]:undefined},asignar:a=>{const o=V[a[0]];if(o)o[ev(a[1])]=ev(a[2])},
+ limpiar_pantalla:()=>{out.textContent="";DL=[];repaint()},limpiar_consola:()=>out.textContent="",detener:()=>stop=1,esperar:()=>0,
+ fecha:()=>log("📅 "+new Date().toISOString().slice(0,10)),hora:()=>log("⏰ "+new Date().toTimeString().slice(0,8)),hora_actual:()=>C.hora(),fecha_hora:()=>log("📅 "+D.formatear_fecha("%Y-%m-%d %H:%M:%S")),
+ alerta:a=>log("🔔 "+ev(a[0])),confirmar:a=>{let r=false;try{r=confirm(ev(a[1]))}catch{}V[a[0]]=r},copiar:a=>{try{navigator.clipboard.writeText(String(ev(a[0])))}catch{}},
+ log_info:a=>log("ℹ️  "+ev(a[0])),log_warn:a=>log("⚠️  "+ev(a[0]),"w"),log_error:a=>log("❌ "+ev(a[0]),"e"),logro:a=>log("🏆 "+ev(a[0]),"s"),
+ pitido:()=>beep(800,80),beep:a=>beep(N(ev(a[0]))||440,N(ev(a[1]))||80),nota:a=>beep(N(ev(a[0]))||440,N(ev(a[1]))||120),
+ musica:a=>{String(ev(a.join(","))).split(",").forEach((n,i)=>setTimeout(()=>beep(NOTE[n.trim().toLowerCase()]||N(n)||440,150),i*170))},
+ llamar:a=>{V.resultado=call(nm(a[0]),a.slice(1).map(ev))},
+ idioma:a=>setLang(String(ev(a[0])).slice(0,2).toLowerCase()),modo_grafico:a=>{const m=String(ev(a[0])).toLowerCase();setMode(/8/.test(m)?"8bit":/16/.test(m)?"16bit":"normal")},paleta:a=>{const p=String(ev(a[0])).toLowerCase();if(PAL[p])setPal(p)},
+ // dibujo
+ color:a=>col=gc(ev(a[0])),rgb:a=>{const[r,g,b]=a.map(x=>I(ev(x))%256);col=q("#"+[r,g,b].map(n=>z(n.toString(16))).join(""))},grosor_linea:a=>lw=I(ev(a[0]))||1,borrar_canvas:()=>{DL=[];repaint()},
+ linea:a=>{const[x1,y1,x2,y2,c]=a.map(ev),cc=c?gc(c):col,w=lw;dr(()=>{X.strokeStyle=cc;X.lineWidth=w;X.beginPath();X.moveTo(x1,y1);X.lineTo(x2,y2);X.stroke()})},
+ rectangulo:a=>{const[x,y,w,h,c]=a.map(ev),cc=c?gc(c):col;dr(()=>{X.fillStyle=cc;X.fillRect(x,y,w,h)})},
+ circulo:a=>{const[x,y,r,c]=a.map(ev),cc=c?gc(c):col;dr(()=>{X.fillStyle=cc;X.beginPath();X.arc(x,y,r,0,7);X.fill()})},
+ ovalo:a=>{const[x,y,w,h,c]=a.map(ev),cc=c?gc(c):col;dr(()=>{X.fillStyle=cc;X.beginPath();X.ellipse(x+w/2,y+h/2,Math.abs(w/2),Math.abs(h/2),0,0,7);X.fill()})},
+ triangulo:a=>{const p=a.map(ev),cc=p[6]?gc(p[6]):col;dr(()=>{X.fillStyle=cc;X.beginPath();X.moveTo(p[0],p[1]);X.lineTo(p[2],p[3]);X.lineTo(p[4],p[5]);X.fill()})},
+ texto_canvas:a=>{const[x,y,t,c]=a.map(ev),cc=c?gc(c):col;dr(()=>{X.fillStyle=cc;X.font="bold 13px Arial";X.textAlign="center";X.fillText(String(t),x,y)})},
+ cuadricula:a=>{const s=I(ev(a[0]))||40,c=q("#34495e");dr(()=>{X.strokeStyle=c;X.lineWidth=1;X.setLineDash([1,3]);X.beginPath();for(let i=0;i<400;i+=s){X.moveTo(i,0);X.lineTo(i,400);X.moveTo(0,i);X.lineTo(400,i)}X.stroke();X.setLineDash([])})},
+ pixel:a=>{const[x,y,c]=a.map(ev),cc=c?gc(c):col,s=mode=="8bit"?2:1;dr(()=>{X.fillStyle=cc;X.fillRect(x,y,s,s)})},
+ sprite:a=>{const[n,x,y,w,h,c]=a.map(ev);S[nm(n)]={x:N(x),y:N(y),w:I(w)||8,h:I(h)||8,c:c?gc(c):"#ffffff"};repaint()},
+ mover_sprite:a=>{const s=S[nm(a[0])];if(s){s.x+=N(ev(a[1]));s.y+=N(ev(a[2]));repaint()}},
+ colisiona:a=>{const s=S[nm(a[1])],t=S[nm(a[2])];V[a[0]]=!!(s&&t&&!(s.x+s.w<t.x||t.x+t.w<s.x||s.y+s.h<t.y||t.y+t.h<s.y))}};
+for(const k in D)C[k]=a=>V[a[0]]=D[k](...a.slice(1).map(ev));
+// ---- núcleo: bloques, funciones, ejecución ----
+const tick=()=>performance.now()-T0<5000||(log("⏱ Límite de 5 s alcanzado","w"),stop=1,false);
+function fe(L,i,e){const o=L[i].c,cl=OPEN[o];let d=1;for(let j=i+1;j<e;j++){if(L[j].c==o)d++;else if(L[j].c==cl&&--d==0)return j}return e}
+function call(n,args){const f=F[n];if(!f){log("⚠️ Función no definida: "+n,"w");return}const sv=V;V=Object.assign(Object.create(null),sv);f.p.forEach((p,i)=>V[p]=args[i]);let r;try{blk(f.L,f.s,f.e)}catch(x){if(x.k=="r")r=x.v;else if(x.k!="b")throw x}finally{V=sv}return r}
+function blk(L,s,e){let i=s;while(i<e&&!stop){const l=L[i],c=l.c;
+ if(c=="si"){const end=fe(L,i,e);let el=-1,d=0;for(let j=i+1;j<end;j++){if(L[j].c=="si")d++;else if(L[j].c=="fin_si")d--;else if(!d&&L[j].c=="sino"){el=j;break}}
+  if(tr(ev(l.r)))blk(L,i+1,el<0?end:el);else if(el>=0)blk(L,el+1,end);i=end+1;continue}
+ if(c=="mientras"){const end=fe(L,i,e);while(!stop&&tr(ev(l.r))&&tick()){try{blk(L,i+1,end)}catch(x){if(x.k=="b")break;if(x.k!="c")throw x}}i=end+1;continue}
+ if(c=="bucle"){const end=fe(L,i,e),n=I(ev(l.r));for(let k=0;k<n&&!stop&&tick();k++){try{blk(L,i+1,end)}catch(x){if(x.k=="b")break;if(x.k!="c")throw x}}i=end+1;continue}
+ if(c=="funcion"){const end=fe(L,i,e),a=sp(unp(l.r));F[nm(a[0])]={p:a.slice(1),L,s:i+1,e:end};i=end+1;continue}
+ if(c=="romper")throw new Sig("b");if(c=="continuar")throw new Sig("c");if(c=="retornar")throw new Sig("r",l.r?ev(l.r):undefined);
+ steps++;try{ex(l)}catch(x){if(x instanceof Sig)throw x;log("❌ Error L"+l.n+": "+x.message,"e")}i++}}
+function ex(l){if(l.c=="mostrar"||l.c=="print")return log(ev(unp(l.r)));
+ const h=C[l.c];if(h)return h(sp(unp(l.r)));
+ if(l.c!="sino"&&!l.c.startsWith("fin_"))log("⚠️ Comando no reconocido o no disponible en navegador L"+l.n+": "+l.raw,"w")}
+function run(){T0=performance.now();V=Object.create(null);F={};S={};DL=[];stop=0;steps=0;col="#0984e3";lw=3;out.textContent="";repaint();
+ const L=parse($("src").value);try{blk(L,0,L.length)}catch(x){if(!(x instanceof Sig))log("❌ "+x.message,"e")}
+ log("");const m=`✅ ${((performance.now()-T0)/1000).toFixed(3)}s · ${steps} stmt · ${Object.keys(V).length} vars`;log(m,"s");$("st").textContent=m}
+// ---- UI ----
+function setMode(m){mode=m;$("mo").value=m;document.body.dataset.mode=m;if(DL)repaint()}
+function setPal(p){pal=p;$("pa").value=p}
+function setLang(l){if(!T[l])return;lang=l;$("lg").value=l;document.documentElement.lang=l;document.querySelectorAll("[data-i]").forEach(e=>e.textContent=T[l][e.dataset.i]);$("rs").textContent=T[l].cmd+" ("+Object.keys(C).length+")"}
+const EX={"1 · Hola":'mostrar "¡Hola, EZScripting!"\nvar:(x, 10)\nincrementar:(x, 5)\nmostrar x\nmostrar "x vale " + x',
+"2 · Condicional y bucle":'var:(n, 5)\nsi:(n > 3)\n  mostrar "Grande"\nsino:\n  mostrar "Pequeño"\nfin_si\nvar:(i, 0)\nmientras:(i < 3)\n  mostrar "vuelta " + i\n  incrementar:(i, 1)\nfin_mientras\nbucle:(2)\n  mostrar "bucle"\nfin_bucle',
+"3 · Funciones":'funcion:(doble, x)\n  multiplicar:(r, x, 2)\n  retornar:(r)\nfin_funcion\nllamar:(doble, 21)\nmostrar resultado',
+"4 · Listas y texto":'rango:(l, 1, 11)\nmostrar l\nfiltro_pares:(p, l)\nmostrar p\npromedio_lista:(avg, l)\nmostrar avg\ncapitalizar:(c, "david")\nmostrar c\nfactorial:(f, 6)\nmostrar f\njson_dumps:(j, [1, 2, 3])\nmostrar j',
+"5 · Dibujo retro 8-bit":'modo_grafico:("8bit")\npaleta:("nes")\ncuadricula:(16)\ncolor:("rojo")\nrectangulo:(40, 40, 80, 60)\ncirculo:(220, 90, 40, "azul")\ntriangulo:(60, 300, 120, 200, 180, 300, "verde")\ntexto_canvas:(200, 360, "EZScripting", "blanco")',
+"6 · Sprites":'sprite:(a, 50, 50, 30, 30, "cian")\nsprite:(b, 120, 50, 30, 30, "rojo")\nmover_sprite:(a, 60, 0)\ncolisiona:(hit, a, b)\nmostrar hit\nnota:(440, 120)',
+"7 · Multi-idioma":'show "Hello"\nexibir "Olá"\nlet:(x, 4)\nif:(x > 3)\n  print "grande"\nend_if\nvideo_mode:("16bit")\ncircle:(200, 200, 80, "gold")'};
+for(const k in EX)$("ex").add(new Option(k,k));
+$("ex").onchange=e=>{$("src").value=EX[e.target.value];save()};
+$("lg").onchange=e=>setLang(e.target.value);$("mo").onchange=e=>setMode(e.target.value);$("pa").onchange=e=>setPal(e.target.value);
+$("run").onclick=run;$("clr").onclick=()=>{out.textContent="";DL=[];S={};repaint()};
+$("src").addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key=="Enter"){e.preventDefault();run()}
+ if(e.key=="Tab"){e.preventDefault();const t=e.target,s=t.selectionStart;t.setRangeText("  ",s,t.selectionEnd,"end")}});
+addEventListener("keydown",e=>{if(e.key=="F5"){e.preventDefault();run()}});
+const save=()=>{try{localStorage.setItem("ezs_code",$("src").value)}catch{}};
+$("src").addEventListener("input",save);
+$("ref").textContent=Object.keys(C).sort().join(" · ");
+let init=EX["1 · Hola"];try{init=localStorage.getItem("ezs_code")||init}catch{}
+$("src").value=init;V=Object.create(null);DL=[];S={};setLang("es");setMode("normal");repaint();
+</script></body></html>
